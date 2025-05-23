@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 using Sopra.Helpers;
 using Sopra.Responses;
 using Sopra.Entities;
+using System.Data;
+using Microsoft.Extensions.Configuration;
 
 namespace Sopra.Services
 {

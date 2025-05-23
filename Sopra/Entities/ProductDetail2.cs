@@ -73,4 +73,10 @@ namespace Sopra.Entities
     {
         public string ProductKeys { get; set; }
     }
+
+    public class ProductKeyAisah
+    {
+        public string ProductKeys { get; set; }
+        public string ProductFunctions { get; set; }
+    }
 }
