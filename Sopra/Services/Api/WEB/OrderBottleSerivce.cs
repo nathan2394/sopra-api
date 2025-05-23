@@ -199,6 +199,52 @@ namespace Sopra.Services
 
                 if (data == null) return null;
 
+                var allRegulerItems = await _context.OrderDetails
+                    .Where(x => x.OrdersID == data.ID && x.Type == "Reguler")
+                    .ToListAsync();
+
+                var productItems = await _context.ProductDetails2
+                    .Where(p => p.Type == "bottle" || p.Type == "closure")
+                    .ToListAsync();
+
+                var regulerItems = allRegulerItems
+                    .Where(x => x.ObjectType == "bottle")
+                    .Select(y =>
+                    {
+                        var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
+
+                        var closureItems = allRegulerItems
+                            .Where(c => c.ObjectType == "closures" && c.ParentID == y.ObjectID)
+                            .Join(productItems,
+                                c => c.ObjectID,
+                                p => p.RefID,
+                                (c, p) => new ClosureItem
+                                {
+                                    Id = c.ID,
+                                    WmsCode = p.WmsCode,
+                                    ProductsId = c.ObjectID,
+                                    Name = p.Name,
+                                    Qty = c.Qty,
+                                    QtyBox = c.QtyBox,
+                                    Price = c.ProductPrice,
+                                    Amount = c.Amount
+                                }).ToList();
+
+                        return new RegulerItem
+                        {
+                            Id = y.ID,
+                            ProductsId = y.ObjectID,
+                            WmsCode = currentBottle?.WmsCode,
+                            Name = currentBottle?.Name,
+                            Qty = y.Qty,
+                            QtyBox = y.QtyBox,
+                            Price = y.ProductPrice,
+                            Amount = y.Amount,
+                            Notes = y.Note,
+                            ClosureItems = closureItems
+                        };
+                    }).ToList();
+
                 if (data.Total == null)
                 {
                     var taxValue = MathF.Floor((float)(data.TAX ?? 0));
@@ -215,20 +261,24 @@ namespace Sopra.Services
                     TransDate = data.TransDate,
                     ReferenceNo = data.ReferenceNo,
                     CustomerId = data.CustomersID ?? 0,
-                    CompanyId = data.CompaniesID ?? 0,
-                    Voucher = data.VouchersID,
+                    CompanyId = data.CompaniesID ?? 1,
+                    VouchersID = data.VouchersID,
+                    Disc2 = data.Disc2Value,
+                    Disc2Value = data.Disc2Value,
                     CreatedBy = data.Username,
                     OrderStatus = data.OrderStatus,
-                    DiscStatus = data.Disc1 > 0 ? "1" : "0",
-                    TotalReguler = data.TotalReguler ?? 0,
+                    DiscStatus = data.Status,
+                    TotalReguler = Math.Floor(data.TotalReguler ?? 0),
                     TotalMix = data.TotalMix ?? 0,
                     DiscPercentage = data.Disc1 ?? 0,
-                    DiscAmount = data.Disc1Value ?? 0,
-                    Dpp = data.DPP ?? 0,
+                    DiscAmount = Math.Floor(data.Disc1Value ?? 0),
+                    Dpp = Math.Floor(data.DPP ?? 0),
                     Tax = data.TAX ?? 0,
-                    TaxValue = data.TaxValue ?? 0,
-                    Netto = data.Total ?? 0,
+                    TaxValue = Math.Floor(data.TaxValue ?? 0),
+                    Netto = Math.Floor(data.Total ?? 0),
+                    Sfee = Math.Floor(data.Sfee ?? 0),
                     Dealer = data.DealerTier,
+                    RegulerItems = regulerItems
                 };
 
                 return resData;
