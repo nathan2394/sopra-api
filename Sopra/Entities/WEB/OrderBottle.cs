@@ -33,8 +33,8 @@ namespace Sopra.Entities
         public string Name { get; set; }
         public int Qty { get; set; }
         public int QtyBox { get; set; }
-        public int Price { get; set; }
-        public int Amount { get; set; }
+        public decimal Price { get; set; }
+        public decimal Amount { get; set; }
     }
     public class MixItem
     {
@@ -56,8 +56,8 @@ namespace Sopra.Entities
         public string Name { get; set; }
         public int Qty { get; set; }
         public int QtyBox { get; set; }
-        public int Price { get; set; }
-        public int Amount { get; set; }
+        public decimal Price { get; set; }
+        public decimal Amount { get; set; }
         public string Notes { get; set; }
         public List<ClosureItem> ClosureItems { get; set; }
     }

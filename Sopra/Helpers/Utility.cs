@@ -61,7 +61,15 @@ namespace Sopra.Helpers
             DateTime gmtPlus7Time = TimeZoneInfo.ConvertTimeFromUtc(utcNow, gmtPlus7); // Convert UTC to GMT+7
             return gmtPlus7Time;
         }
+        public static IConfiguration GetConfig()
+        {
+            // Example: Load configuration from appsettings.json
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
 
+            return builder.Build();
+        }
         public static User UserFromToken(string token)
         {
             try
@@ -247,6 +255,12 @@ namespace Sopra.Helpers
 
         public static DataTable SQLGetObjects(string cmdText, SqlConnection conn)
         {
+            if (SQLDBConnection == null)
+            {
+                var config = Utility.GetConfig();
+                Utility.ConnectSQL(config["SQL:Server"], config["SQL:Database"], config["SQL:UserID"], config["SQL:Password"]);
+            }
+
             if (conn == null)
                 conn = SQLDBConnection;
 

@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 using Sopra.Helpers;
 using Sopra.Responses;
 using Sopra.Entities;
+using System.Data;
+using Microsoft.Extensions.Configuration;
 
 namespace Sopra.Services
 {
@@ -199,15 +202,41 @@ namespace Sopra.Services
 
                 if (data == null) return null;
 
-                if (data.Total == null)
-                {
-                    var taxValue = MathF.Floor((float)(data.TAX ?? 0));
-                    var dpp = MathF.Floor((float)(data.DPP ?? 0));
-                    var netto = dpp + taxValue;
+                // Get Detail Order from Raw Query
+                var orderDetail = Utility.SQLGetObjects(
+                    $"SELECT * FROM dbo.OrderDetails WHERE OrdersID = {id} AND IsDeleted = 0",
+                    Utility.SQLDBConnection
+                );
+                // Mapping orderDetail to RegulerItem
+                var regulerItems = orderDetail
+                    .AsEnumerable()
+                    .Select(row => new RegulerItem
+                    {
+                        Id = Convert.ToInt32(row.Field<Int64>("OrdersID")),
+                        ProductsId = Convert.ToInt32(row.Field<Int64>("ObjectID")),
+                        Qty = Convert.ToInt32(row.Field<decimal>("Qty")),
+                        // ClosureItems = Utility.SQLGetObjects(
+                        //     $"SELECT * FROM dbo.ClosureItem WHERE OrderDetailID = {row.Field<long>("ID")} AND IsDeleted = 0",
+                        //     Utility.SQLDBConnection
+                        // ).AsEnumerable().Select(c => new ClosureItem
+                        // {
+                        //     Id = c.Field<int>("ID"),
+                        //     ProductsId = c.Field<int>("ProductsID"),
+                        //     Name = c.Field<string>("Name"),
+                        //     Qty = c.Field<int?>("Qty") ?? 0,
+                        //     QtyBox = c.Field<int?>("QtyBox") ?? 0,
+                        //     Price = c.Field<decimal?>("Price") ?? 0,
+                        //     Amount = c.Field<decimal?>("Amount") ?? 0
+                        // }).ToList()
+                    }).ToList();
 
-                    data.TaxValue = (decimal)taxValue;
-                    data.Total = (decimal)netto;
-                }
+                // Calculate & Floor TaxValue and Netto
+                var taxValue = MathF.Floor((float)(data.TAX ?? 0));
+                var dpp = MathF.Floor((float)(data.DPP ?? 0));
+                var netto = dpp + taxValue;
+
+                data.TaxValue = (decimal)taxValue;
+                data.Total = (decimal)netto;
 
                 var resData = new OrderBottleDto
                 {
