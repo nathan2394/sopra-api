@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 
 using Sopra.Services;
+using Sopra.Entities;
+using Sopra.Responses;
 
 namespace Sopra.Api.Controllers
 {
@@ -36,7 +38,7 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "OrderBottleController");
+                Trace.WriteLine(message, "OrderBottleController: Get All");
                 return BadRequest(new { message });
             }
         }
@@ -58,7 +60,32 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "OrderBottleController");
+                Trace.WriteLine(message, "OrderBottleController: Get by ID");
+                return BadRequest(new { message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Create([FromBody] OrderBottleDto obj)
+        {
+            try
+            {
+
+                var result = await _service.CreateAsync(obj);
+
+                var response = new Response<OrderBottleDto>(result);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "OrderBottleController: Create");
                 return BadRequest(new { message });
             }
         }
