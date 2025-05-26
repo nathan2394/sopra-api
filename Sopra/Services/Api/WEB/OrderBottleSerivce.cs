@@ -11,6 +11,7 @@ using Sopra.Helpers;
 using Sopra.Responses;
 using Sopra.Entities;
 using System.Data;
+using Newtonsoft.Json;
 using Microsoft.Extensions.Configuration;
 
 namespace Sopra.Services
@@ -20,7 +21,8 @@ namespace Sopra.Services
         Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
         string filter, string date);
         Task<OrderBottleDto> GetByIdAsync(long id);
-        // Task<T> CreateAsync(T data);
+        Task<OrderBottleDto> CreateAsync(OrderBottleDto data);
+
         // Task<T> EditAsync(T data);
         Task<bool> DeleteAsync(long id, long userID);
     }
@@ -33,8 +35,30 @@ namespace Sopra.Services
             _context = context;
         }
 
-        public async Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
-        string filter, string date)
+        private async Task<string> generateVoucherNo()
+        {
+            // Get the current year (YY)
+            var currentYear = DateTime.Now.ToString("yy");
+
+            // Fetch the last voucher number for the current year
+            var lastVoucher = await _context.Orders
+                //.Where(x => x.OrderNo.StartsWith($"SOPRA/SC/M/{currentYear}/") && x.ExternalOrderNo == null)
+                .OrderByDescending(x => x.ID)
+                .Select(x => x.ID)
+                .FirstOrDefaultAsync();
+
+            // Determine the next voucher number
+            long nextNumber = 1; // Default to 1 if no vouchers exist for the year
+            if (lastVoucher != 0)
+            {
+                nextNumber = lastVoucher + 1;
+            }
+
+            var newVoucherNo = $"SOPRA/SC/{currentYear}/{nextNumber:D5}";
+            return Convert.ToString(newVoucherNo);
+        }
+
+        public async Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort, string filter, string date)
         {
             try
             {
@@ -292,6 +316,102 @@ namespace Sopra.Services
                 if (ex.StackTrace != null)
                     Trace.WriteLine(ex.StackTrace);
 
+                throw;
+            }
+        }
+
+        public async Task<OrderBottleDto> CreateAsync(OrderBottleDto data)
+        {
+            await using var dbTrans = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                Trace.WriteLine($"payload order from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+
+                var newVoucherNo = await generateVoucherNo();
+                data.VoucherNo = Convert.ToString(newVoucherNo);
+
+                var order = new Order
+                {
+                    OrderNo = data.VoucherNo,
+                    RefID = data.RefID,
+                    TransDate = data.TransDate,
+                    ReferenceNo = data.ReferenceNo,
+                    CustomersID = data.CustomerId,
+                    CompaniesID = data.CompanyId,
+                    VouchersID = data.VouchersID,
+                    Disc1 = data.DiscPercentage,
+                    Disc1Value = data.DiscAmount,
+                    Disc2 = data.Disc2,
+                    Disc2Value = data.Disc2Value,
+                    TotalReguler = data.TotalReguler,
+                    TotalMix = data.TotalMix,
+                    OrderStatus = data.OrderStatus,
+                    Username = data.CreatedBy,
+                    Amount = data.Dpp + data.DiscAmount + data.Disc2Value,
+                    DPP = data.Dpp,
+                    TAX = data.Tax,
+                    TaxValue = data.TaxValue,
+                    Total = data.Netto,
+                    Sfee = data.Sfee
+                };
+
+                await _context.Orders.AddAsync(order);
+                await _context.SaveChangesAsync();
+
+                var allOrderDetails = new List<OrderDetail>();
+                foreach (var item in data.RegulerItems)
+                {
+                    // Detail reguler
+                    var regulerDetail = new OrderDetail
+                    {
+                        OrdersID = order.ID,
+                        ObjectID = item.ProductsId,
+                        ObjectType = "bottle",
+                        Type = "Reguler",
+                        QtyBox = item.QtyBox,
+                        Qty = item.Qty,
+                        ProductPrice = item.Price,
+                        Amount = item.Amount
+                    };
+
+                    allOrderDetails.Add(regulerDetail);
+
+                    // Detail closure (anak dari reguler)
+                    foreach (var closure in item.ClosureItems)
+                    {
+                        var closureDetail = new OrderDetail
+                        {
+                            OrdersID = order.ID,
+                            ObjectID = closure.ProductsId,
+                            ObjectType = "closures",
+                            Type = "Reguler",
+                            QtyBox = closure.QtyBox,
+                            Qty = closure.Qty,
+                            ProductPrice = closure.Price,
+                            Amount = closure.Amount
+                        };
+
+                        allOrderDetails.Add(closureDetail);
+                    }
+                }
+
+                await _context.OrderDetails.AddRangeAsync(allOrderDetails);
+
+                await Utility.AfterSave(_context, "OrderBottle", data.ID, "Add");
+                await _context.SaveChangesAsync();
+                await dbTrans.CommitAsync();
+
+                return data;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                Trace.WriteLine($"error save data order, payload = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                await dbTrans.RollbackAsync();
+                Trace.WriteLine($"rollback db");
                 throw;
             }
         }

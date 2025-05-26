@@ -5,6 +5,8 @@ namespace Sopra.Entities
 {
     public class OrderBottleDto
     {
+        public long ID { get; set; }
+        public long? RefID { get; set; }
         public string VoucherNo { get; set; }
         public DateTime? TransDate { get; set; }
         public string ReferenceNo { get; set; }
