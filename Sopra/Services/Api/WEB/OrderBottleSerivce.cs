@@ -352,7 +352,8 @@ namespace Sopra.Services
                     TAX = data.Tax,
                     TaxValue = data.TaxValue,
                     Total = data.Netto,
-                    Sfee = data.Sfee
+                    Sfee = data.Sfee,
+                    DealerTier = data.Dealer
                 };
 
                 await _context.Orders.AddAsync(order);
@@ -371,7 +372,8 @@ namespace Sopra.Services
                         QtyBox = item.QtyBox,
                         Qty = item.Qty,
                         ProductPrice = item.Price,
-                        Amount = item.Amount
+                        Amount = item.Amount,
+                        Note = item.Notes
                     };
 
                     allOrderDetails.Add(regulerDetail);
@@ -384,6 +386,7 @@ namespace Sopra.Services
                             OrdersID = order.ID,
                             ObjectID = closure.ProductsId,
                             ObjectType = "closures",
+                            ParentID = item.ProductsId,
                             Type = "Reguler",
                             QtyBox = closure.QtyBox,
                             Qty = closure.Qty,
