@@ -89,5 +89,28 @@ namespace Sopra.Api.Controllers
                 return BadRequest(new { message });
             }
         }
+
+        [HttpPut]
+        public async Task<IActionResult> Edit([FromBody] OrderBottleDto obj)
+        {
+            try
+            {
+                var result = await _service.EditAsync(obj);
+                var response = new Response<OrderBottleDto>(result);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "OrderController");
+                return BadRequest(new { message });
+            }
+        }
     }
 }

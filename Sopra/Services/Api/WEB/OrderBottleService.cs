@@ -22,8 +22,7 @@ namespace Sopra.Services
         string filter, string date);
         Task<OrderBottleDto> GetByIdAsync(long id);
         Task<OrderBottleDto> CreateAsync(OrderBottleDto data);
-
-        // Task<T> EditAsync(T data);
+        Task<OrderBottleDto> EditAsync(OrderBottleDto data);
         Task<bool> DeleteAsync(long id, long userID);
     }
 
@@ -54,7 +53,7 @@ namespace Sopra.Services
                 nextNumber = lastVoucher + 1;
             }
 
-            var newVoucherNo = $"SOPRA/SC/{currentYear}/{nextNumber:D5}";
+            var newVoucherNo = $"SOPRA/SC/N/{currentYear}/{nextNumber:D5}";
             return Convert.ToString(newVoucherNo);
         }
 
@@ -284,6 +283,8 @@ namespace Sopra.Services
 
                 var resData = new OrderBottleDto
                 {
+                    ID = data.ID,
+                    RefID = data.RefID,
                     VoucherNo = data.OrderNo,
                     TransDate = data.TransDate,
                     ReferenceNo = data.ReferenceNo,
@@ -347,7 +348,7 @@ namespace Sopra.Services
                     TotalMix = data.TotalMix,
                     OrderStatus = data.OrderStatus,
                     Username = data.CreatedBy,
-                    Amount = data.Dpp + data.DiscAmount + data.Disc2Value,
+                    Amount = data.Amount,
                     DPP = data.Dpp,
                     TAX = data.Tax,
                     TaxValue = data.TaxValue,
@@ -362,7 +363,6 @@ namespace Sopra.Services
                 var allOrderDetails = new List<OrderDetail>();
                 foreach (var item in data.RegulerItems)
                 {
-                    // Detail reguler
                     var regulerDetail = new OrderDetail
                     {
                         OrdersID = order.ID,
@@ -378,7 +378,6 @@ namespace Sopra.Services
 
                     allOrderDetails.Add(regulerDetail);
 
-                    // Detail closure (anak dari reguler)
                     foreach (var closure in item.ClosureItems)
                     {
                         var closureDetail = new OrderDetail
@@ -402,6 +401,8 @@ namespace Sopra.Services
 
                 await Utility.AfterSave(_context, "OrderBottle", data.ID, "Add");
                 await _context.SaveChangesAsync();
+
+                Trace.WriteLine($"payload order after save data into database = " + JsonConvert.SerializeObject(data, Formatting.Indented));
                 await dbTrans.CommitAsync();
 
                 return data;
@@ -415,6 +416,158 @@ namespace Sopra.Services
                 Trace.WriteLine($"error save data order, payload = " + JsonConvert.SerializeObject(data, Formatting.Indented));
                 await dbTrans.RollbackAsync();
                 Trace.WriteLine($"rollback db");
+                throw;
+            }
+        }
+
+        public async Task<OrderBottleDto> EditAsync(OrderBottleDto data)
+        {
+            await using var dbTrans = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                Trace.WriteLine($"payload order from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+
+                var obj = null as Order;
+                
+                obj = await _context.Orders.FirstOrDefaultAsync(x => x.ID == data.ID && x.IsDeleted == false);
+                if (obj == null) return null;
+
+                obj.CustomersID = data.CustomerId;
+                obj.ReferenceNo = data.ReferenceNo;
+                // obj.Other = data.Other;
+                obj.Amount = data.Dpp;
+                obj.Status = data.DiscStatus;
+                obj.VouchersID = data.VouchersID;
+                obj.Disc1 = data.DiscPercentage;
+                obj.Disc1Value = data.DiscAmount;
+                obj.Disc2 = data.Disc2;
+                obj.Disc2Value = data.Disc2Value;
+                obj.Sfee = data.Sfee;
+                obj.DPP = data.Dpp;
+                obj.TAX = data.Tax;
+                obj.TaxValue = data.TaxValue;
+                obj.Total = data.Netto;
+                // obj.Departure = data.Departure;
+                // obj.Arrival = data.Arrival;
+                // obj.WarehouseID = data.WarehouseID;
+                // obj.CountriesID = data.CountriesID;
+                // obj.ProvincesID = data.ProvincesID;
+                // obj.RegenciesID = data.RegenciesID;
+                // obj.DistrictsID = data.DistrictsID;
+                // obj.Address = data.Address;
+                // obj.PostalCode = data.PostalCode;
+                // obj.TransportsID = data.TransportsID;
+                // obj.TotalTransport = data.TotalTransport;
+                // obj.TotalTransportCapacity = data.TotalTransportCapacity;
+                // obj.TotalOrderCapacity = data.TotalOrderCapacity;
+                // obj.TotalOrderWeight = data.TotalOrderWeight;
+                // obj.TotalTransportCost = data.TotalTransportCost;
+                // obj.RemainingCapacity = data.RemainingCapacity;
+                // obj.ReasonsID = data.ReasonsID;
+                // obj.ExpeditionsID = data.ExpeditionsID;
+                // obj.BiayaPickup = data.BiayaPickup;
+                // obj.CheckInvoice = data.CheckInvoice;
+                // obj.InvoicedDate = data.InvoicedDate;
+                obj.TotalReguler = data.TotalReguler;
+                // obj.TotalJumbo = data.TotalJumbo;
+                obj.TotalMix = data.TotalMix;
+                // obj.TotalNewPromo = data.TotalNewPromo;
+                // obj.TotalSupersale = data.TotalSupersale;
+                // obj.ValidTime = data.ValidTime;
+                // obj.DealerTier = data.DealerTier;
+                // obj.DeliveryStatus = data.DeliveryStatus;
+                // obj.PartialDeliveryStatus = data.PartialDeliveryStatus;
+                // obj.PaymentTerm = data.PaymentTerm;
+                // obj.Validity = data.Validity;
+                // obj.IsVirtual = data.IsVirtual;
+                // obj.VirtualAccount = data.VirtualAccount;
+                // obj.BanksID = data.BanksID;
+                // obj.ShipmentNum = data.ShipmentNum;
+                // obj.PaidDate = data.PaidDate;
+                // obj.RecreateOrderStatus = data.RecreateOrderStatus;
+                // obj.CompaniesID = data.CompaniesID;
+                // obj.AmountTotal = data.AmountTotal;
+                // obj.FutureDateStatus = data.FutureDateStatus;
+                // obj.ChangeExpeditionStatus = data.ChangeExpeditionStatus;
+                // obj.ChangetruckStatus = data.ChangetruckStatus;
+                // obj.SubscriptionCount = data.SubscriptionCount;
+                // obj.SubscriptionStatus = data.SubscriptionStatus;
+                // obj.SubscriptionDate = data.SubscriptionDate;
+                // obj.Username = data.Username;
+                // obj.UsernameCancel = data.UsernameCancel;
+                // obj.SessionID = data.SessionID;
+                // obj.SessionDate = data.SessionDate;
+                // obj.Type = data.Type;
+                // obj.PaymentStatus = data.PaymentStatus;
+                // obj.Label = data.Label;
+                // obj.Landmark = data.Landmark;
+                // obj.IsExpress = data.IsExpress;
+                // obj.UserIn = userId;
+
+                // obj.UserUp = data.UserUp;
+
+                obj.DateUp = Utility.getCurrentTimestamps();
+
+                var existingReguler = _context.OrderDetails.Where(d => d.OrdersID == obj.ID);
+                _context.OrderDetails.RemoveRange(existingReguler);
+
+                var allOrderDetails = new List<OrderDetail>();
+                foreach (var item in data.RegulerItems)
+                {
+                    var regulerDetail = new OrderDetail
+                    {
+                        OrdersID = obj.ID,
+                        ObjectID = item.ProductsId,
+                        ObjectType = "bottle",
+                        Type = "Reguler",
+                        QtyBox = item.QtyBox,
+                        Qty = item.Qty,
+                        ProductPrice = item.Price,
+                        Amount = item.Amount,
+                        Note = item.Notes
+                    };
+
+                    allOrderDetails.Add(regulerDetail);
+
+                    foreach (var closure in item.ClosureItems)
+                    {
+                        var closureDetail = new OrderDetail
+                        {
+                            OrdersID = obj.ID,
+                            ObjectID = closure.ProductsId,
+                            ObjectType = "closures",
+                            ParentID = item.ProductsId,
+                            Type = "Reguler",
+                            QtyBox = closure.QtyBox,
+                            Qty = closure.Qty,
+                            ProductPrice = closure.Price,
+                            Amount = closure.Amount
+                        };
+
+                        allOrderDetails.Add(closureDetail);
+                    }
+                }
+
+                await _context.OrderDetails.AddRangeAsync(allOrderDetails);
+
+                await Utility.AfterSave(_context, "OrderBottle", data.ID, "Edit");
+                await _context.SaveChangesAsync();
+
+                Trace.WriteLine($"payload order after save data into database = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                await dbTrans.CommitAsync();
+
+                return data;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                Trace.WriteLine($"error save data order,payload = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                await dbTrans.RollbackAsync();
+                Trace.WriteLine($"rollback db");
+
                 throw;
             }
         }

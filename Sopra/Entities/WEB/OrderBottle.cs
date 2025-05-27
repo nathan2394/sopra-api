@@ -25,6 +25,7 @@ namespace Sopra.Entities
         public decimal Dpp { get; set; }
         public decimal Tax { get; set; }
         public decimal TaxValue { get; set; }
+        public decimal Amount { get; set; }
         public decimal Netto { get; set; }
         public string Dealer { get; set; }
         public decimal? Sfee { get; set; }
