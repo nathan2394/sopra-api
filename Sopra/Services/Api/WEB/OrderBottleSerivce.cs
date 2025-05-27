@@ -11,6 +11,7 @@ using Sopra.Helpers;
 using Sopra.Responses;
 using Sopra.Entities;
 using System.Data;
+using Newtonsoft.Json;
 using Microsoft.Extensions.Configuration;
 
 namespace Sopra.Services
@@ -20,7 +21,8 @@ namespace Sopra.Services
         Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
         string filter, string date);
         Task<OrderBottleDto> GetByIdAsync(long id);
-        // Task<T> CreateAsync(T data);
+        Task<OrderBottleDto> CreateAsync(OrderBottleDto data);
+
         // Task<T> EditAsync(T data);
         Task<bool> DeleteAsync(long id, long userID);
     }
@@ -33,8 +35,30 @@ namespace Sopra.Services
             _context = context;
         }
 
-        public async Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
-        string filter, string date)
+        private async Task<string> generateVoucherNo()
+        {
+            // Get the current year (YY)
+            var currentYear = DateTime.Now.ToString("yy");
+
+            // Fetch the last voucher number for the current year
+            var lastVoucher = await _context.Orders
+                //.Where(x => x.OrderNo.StartsWith($"SOPRA/SC/M/{currentYear}/") && x.ExternalOrderNo == null)
+                .OrderByDescending(x => x.ID)
+                .Select(x => x.ID)
+                .FirstOrDefaultAsync();
+
+            // Determine the next voucher number
+            long nextNumber = 1; // Default to 1 if no vouchers exist for the year
+            if (lastVoucher != 0)
+            {
+                nextNumber = lastVoucher + 1;
+            }
+
+            var newVoucherNo = $"SOPRA/SC/{currentYear}/{nextNumber:D5}";
+            return Convert.ToString(newVoucherNo);
+        }
+
+        public async Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort, string filter, string date)
         {
             try
             {
@@ -202,41 +226,61 @@ namespace Sopra.Services
 
                 if (data == null) return null;
 
-                // Get Detail Order from Raw Query
-                var orderDetail = Utility.SQLGetObjects(
-                    $"SELECT * FROM dbo.OrderDetails WHERE OrdersID = {id} AND IsDeleted = 0",
-                    Utility.SQLDBConnection
-                );
-                // Mapping orderDetail to RegulerItem
-                var regulerItems = orderDetail
-                    .AsEnumerable()
-                    .Select(row => new RegulerItem
+                var allRegulerItems = await _context.OrderDetails
+                    .Where(x => x.OrdersID == data.ID && x.Type == "Reguler")
+                    .ToListAsync();
+
+                var productItems = await _context.ProductDetails2
+                    .Where(p => p.Type == "bottle" || p.Type == "closure")
+                    .ToListAsync();
+
+                var regulerItems = allRegulerItems
+                    .Where(x => x.ObjectType == "bottle")
+                    .Select(y =>
                     {
-                        Id = Convert.ToInt32(row.Field<Int64>("OrdersID")),
-                        ProductsId = Convert.ToInt32(row.Field<Int64>("ObjectID")),
-                        Qty = Convert.ToInt32(row.Field<decimal>("Qty")),
-                        // ClosureItems = Utility.SQLGetObjects(
-                        //     $"SELECT * FROM dbo.ClosureItem WHERE OrderDetailID = {row.Field<long>("ID")} AND IsDeleted = 0",
-                        //     Utility.SQLDBConnection
-                        // ).AsEnumerable().Select(c => new ClosureItem
-                        // {
-                        //     Id = c.Field<int>("ID"),
-                        //     ProductsId = c.Field<int>("ProductsID"),
-                        //     Name = c.Field<string>("Name"),
-                        //     Qty = c.Field<int?>("Qty") ?? 0,
-                        //     QtyBox = c.Field<int?>("QtyBox") ?? 0,
-                        //     Price = c.Field<decimal?>("Price") ?? 0,
-                        //     Amount = c.Field<decimal?>("Amount") ?? 0
-                        // }).ToList()
+                        var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
+
+                        var closureItems = allRegulerItems
+                            .Where(c => c.ObjectType == "closures" && c.ParentID == y.ObjectID)
+                            .Join(productItems,
+                                c => c.ObjectID,
+                                p => p.RefID,
+                                (c, p) => new ClosureItem
+                                {
+                                    Id = c.ID,
+                                    WmsCode = p.WmsCode,
+                                    ProductsId = c.ObjectID,
+                                    Name = p.Name,
+                                    Qty = c.Qty,
+                                    QtyBox = c.QtyBox,
+                                    Price = c.ProductPrice,
+                                    Amount = c.Amount
+                                }).ToList();
+
+                        return new RegulerItem
+                        {
+                            Id = y.ID,
+                            ProductsId = y.ObjectID,
+                            WmsCode = currentBottle?.WmsCode,
+                            Name = currentBottle?.Name,
+                            Qty = y.Qty,
+                            QtyBox = y.QtyBox,
+                            Price = y.ProductPrice,
+                            Amount = y.Amount,
+                            Notes = y.Note,
+                            ClosureItems = closureItems
+                        };
                     }).ToList();
 
-                // Calculate & Floor TaxValue and Netto
-                var taxValue = MathF.Floor((float)(data.TAX ?? 0));
-                var dpp = MathF.Floor((float)(data.DPP ?? 0));
-                var netto = dpp + taxValue;
+                if (data.Total == null)
+                {
+                    var taxValue = MathF.Floor((float)(data.TAX ?? 0));
+                    var dpp = MathF.Floor((float)(data.DPP ?? 0));
+                    var netto = dpp + taxValue;
 
-                data.TaxValue = (decimal)taxValue;
-                data.Total = (decimal)netto;
+                    data.TaxValue = (decimal)taxValue;
+                    data.Total = (decimal)netto;
+                }
 
                 var resData = new OrderBottleDto
                 {
@@ -244,20 +288,24 @@ namespace Sopra.Services
                     TransDate = data.TransDate,
                     ReferenceNo = data.ReferenceNo,
                     CustomerId = data.CustomersID ?? 0,
-                    CompanyId = data.CompaniesID ?? 0,
-                    Voucher = data.VouchersID,
+                    CompanyId = data.CompaniesID ?? 1,
+                    VouchersID = data.VouchersID,
+                    Disc2 = data.Disc2Value,
+                    Disc2Value = data.Disc2Value,
                     CreatedBy = data.Username,
                     OrderStatus = data.OrderStatus,
-                    DiscStatus = data.Disc1 > 0 ? "1" : "0",
-                    TotalReguler = data.TotalReguler ?? 0,
+                    DiscStatus = data.Status,
+                    TotalReguler = Math.Floor(data.TotalReguler ?? 0),
                     TotalMix = data.TotalMix ?? 0,
                     DiscPercentage = data.Disc1 ?? 0,
-                    DiscAmount = data.Disc1Value ?? 0,
-                    Dpp = data.DPP ?? 0,
+                    DiscAmount = Math.Floor(data.Disc1Value ?? 0),
+                    Dpp = Math.Floor(data.DPP ?? 0),
                     Tax = data.TAX ?? 0,
-                    TaxValue = data.TaxValue ?? 0,
-                    Netto = data.Total ?? 0,
+                    TaxValue = Math.Floor(data.TaxValue ?? 0),
+                    Netto = Math.Floor(data.Total ?? 0),
+                    Sfee = Math.Floor(data.Sfee ?? 0),
                     Dealer = data.DealerTier,
+                    RegulerItems = regulerItems
                 };
 
                 return resData;
@@ -268,6 +316,105 @@ namespace Sopra.Services
                 if (ex.StackTrace != null)
                     Trace.WriteLine(ex.StackTrace);
 
+                throw;
+            }
+        }
+
+        public async Task<OrderBottleDto> CreateAsync(OrderBottleDto data)
+        {
+            await using var dbTrans = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                Trace.WriteLine($"payload order from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+
+                var newVoucherNo = await generateVoucherNo();
+                data.VoucherNo = Convert.ToString(newVoucherNo);
+
+                var order = new Order
+                {
+                    OrderNo = data.VoucherNo,
+                    RefID = data.RefID,
+                    TransDate = data.TransDate,
+                    ReferenceNo = data.ReferenceNo,
+                    CustomersID = data.CustomerId,
+                    CompaniesID = data.CompanyId,
+                    VouchersID = data.VouchersID,
+                    Disc1 = data.DiscPercentage,
+                    Disc1Value = data.DiscAmount,
+                    Disc2 = data.Disc2,
+                    Disc2Value = data.Disc2Value,
+                    TotalReguler = data.TotalReguler,
+                    TotalMix = data.TotalMix,
+                    OrderStatus = data.OrderStatus,
+                    Username = data.CreatedBy,
+                    Amount = data.Dpp + data.DiscAmount + data.Disc2Value,
+                    DPP = data.Dpp,
+                    TAX = data.Tax,
+                    TaxValue = data.TaxValue,
+                    Total = data.Netto,
+                    Sfee = data.Sfee,
+                    DealerTier = data.Dealer
+                };
+
+                await _context.Orders.AddAsync(order);
+                await _context.SaveChangesAsync();
+
+                var allOrderDetails = new List<OrderDetail>();
+                foreach (var item in data.RegulerItems)
+                {
+                    // Detail reguler
+                    var regulerDetail = new OrderDetail
+                    {
+                        OrdersID = order.ID,
+                        ObjectID = item.ProductsId,
+                        ObjectType = "bottle",
+                        Type = "Reguler",
+                        QtyBox = item.QtyBox,
+                        Qty = item.Qty,
+                        ProductPrice = item.Price,
+                        Amount = item.Amount,
+                        Note = item.Notes
+                    };
+
+                    allOrderDetails.Add(regulerDetail);
+
+                    // Detail closure (anak dari reguler)
+                    foreach (var closure in item.ClosureItems)
+                    {
+                        var closureDetail = new OrderDetail
+                        {
+                            OrdersID = order.ID,
+                            ObjectID = closure.ProductsId,
+                            ObjectType = "closures",
+                            ParentID = item.ProductsId,
+                            Type = "Reguler",
+                            QtyBox = closure.QtyBox,
+                            Qty = closure.Qty,
+                            ProductPrice = closure.Price,
+                            Amount = closure.Amount
+                        };
+
+                        allOrderDetails.Add(closureDetail);
+                    }
+                }
+
+                await _context.OrderDetails.AddRangeAsync(allOrderDetails);
+
+                await Utility.AfterSave(_context, "OrderBottle", data.ID, "Add");
+                await _context.SaveChangesAsync();
+                await dbTrans.CommitAsync();
+
+                return data;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                Trace.WriteLine($"error save data order, payload = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                await dbTrans.RollbackAsync();
+                Trace.WriteLine($"rollback db");
                 throw;
             }
         }
