@@ -108,7 +108,31 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "OrderController");
+                Trace.WriteLine(message, "OrderBottleController: Edit");
+                return BadRequest(new { message });
+            }
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            try
+            {
+                var result = await _service.DeleteAsync(id);
+
+                var response = new Response<object>(result);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "OrderBottleController: Delete");
                 return BadRequest(new { message });
             }
         }
