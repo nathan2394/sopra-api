@@ -47,7 +47,11 @@ namespace Sopra.Services
             var currentYear = DateTime.Now.ToString("yy");
 
             // Fetch the last voucher number for the current year
-            var lastVoucher = await _orderBottleRepository.GetLastOrderIdAsync();
+            // var lastVoucher = await _orderBottleRepository.GetLastOrderIdAsync();
+            var lastVoucher = await _context.Orders
+                .OrderByDescending(x => x.ID)
+                .Select(x => x.ID)
+                .FirstOrDefaultAsync();
 
             // Determine the next voucher number
             long nextNumber = 1; // Default to 1 if no vouchers exist for the year
@@ -551,7 +555,8 @@ namespace Sopra.Services
                     }
                 }
 
-                await _orderBottleRepository.AddOrderDetailsAsync(allOrderDetails);
+                // await _orderBottleRepository.AddOrderDetailsAsync(allOrderDetails);
+                await _context.OrderDetails.AddRangeAsync(allOrderDetails);
 
                 await Utility.AfterSave(_context, "OrderBottle", data.ID, "Edit");
                 await _context.SaveChangesAsync();
