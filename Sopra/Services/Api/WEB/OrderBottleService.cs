@@ -23,12 +23,19 @@ namespace Sopra.Services
         Task<OrderBottleDto> GetByIdAsync(long id);
         Task<OrderBottleDto> CreateAsync(OrderBottleDto data);
         Task<OrderBottleDto> EditAsync(OrderBottleDto data);
-        Task<bool> DeleteAsync(long id, long userID);
+        Task<bool> DeleteAsync(long id);
     }
 
     public class OrderBottleService : OrderBottleInterface
     {
         private readonly EFContext _context;
+        private readonly IOrderBottleRepository _orderBottleRepository;
+
+        public OrderBottleService(IOrderBottleRepository orderBottleRepository)
+        {
+            _orderBottleRepository = orderBottleRepository;
+        }
+        
         public OrderBottleService(EFContext context)
         {
             _context = context;
@@ -40,11 +47,7 @@ namespace Sopra.Services
             var currentYear = DateTime.Now.ToString("yy");
 
             // Fetch the last voucher number for the current year
-            var lastVoucher = await _context.Orders
-                //.Where(x => x.OrderNo.StartsWith($"SOPRA/SC/M/{currentYear}/") && x.ExternalOrderNo == null)
-                .OrderByDescending(x => x.ID)
-                .Select(x => x.ID)
-                .FirstOrDefaultAsync();
+            var lastVoucher = await _orderBottleRepository.GetLastOrderIdAsync();
 
             // Determine the next voucher number
             long nextNumber = 1; // Default to 1 if no vouchers exist for the year
@@ -548,7 +551,7 @@ namespace Sopra.Services
                     }
                 }
 
-                await _context.OrderDetails.AddRangeAsync(allOrderDetails);
+                await _orderBottleRepository.AddOrderDetailsAsync(allOrderDetails);
 
                 await Utility.AfterSave(_context, "OrderBottle", data.ID, "Edit");
                 await _context.SaveChangesAsync();
@@ -572,9 +575,35 @@ namespace Sopra.Services
             }
         }
 
-        public async Task<bool> DeleteAsync(long id, long userID)
+        public async Task<bool> DeleteAsync(long id)
         {
-            throw new NotImplementedException();
+            await using var dbTrans = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var obj = await _context.Orders.FirstOrDefaultAsync(x => x.ID == id && x.IsDeleted == false && x.OrderStatus == "ACTIVE");
+                if (obj == null) return false;
+
+                obj.OrderStatus = "CANCEL";
+                obj.DateUp = DateTime.Now;
+
+                await _context.SaveChangesAsync();
+
+                await Utility.AfterSave(_context, "OrderBottle", id, "Delete");
+                await dbTrans.CommitAsync();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                await dbTrans.RollbackAsync();
+
+                throw;
+            }
         }
     }
 }
