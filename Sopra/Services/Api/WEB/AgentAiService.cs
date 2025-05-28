@@ -21,8 +21,13 @@ namespace Sopra.Services
         public DataTable execProductDetail(string param = "", ProductKeyAisah productKeyAisah = null)
         {
             var query = string.Format(@"
-                    EXEC spCreateProductDetails '{0}','{1}','{2}'
-                ", param, productKeyAisah.ProductFunctions, productKeyAisah.ProductKeys);
+                    EXEC spCreateProductDetails '{0}','{1}','{2}', '{3}','{4}','{5}'
+                ", param, "",
+                productKeyAisah.ProductID1, //productKeyAisah.ProductCategory1,
+                productKeyAisah.ProductID2, //productKeyAisah.ProductCategory2,
+                productKeyAisah.ProductID3, //productKeyAisah.ProductCategory3,
+                productKeyAisah.ProductID4 //productKeyAisah.ProductCategory4
+            );
 
             var result = Utility.SQLGetObjects(query, Utility.SQLDBConnection);
 
