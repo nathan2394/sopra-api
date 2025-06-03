@@ -205,6 +205,7 @@ namespace Sopra.Api
             services.AddScoped<SnapBcaService>();
             services.AddScoped<OrderInterface, OrderService>();
             services.AddScoped<OrderBottleInterface, OrderBottleService>();
+            services.AddScoped<PromosInterface, PromosService>();
             services.AddScoped<AgentAiInterface, AgentAiService>();
             services.AddScoped<IServiceAsync<OrderDetail>, OrderDetailService>();
             services.AddScoped<IServiceAsync<Invoice>, InvoiceService>();

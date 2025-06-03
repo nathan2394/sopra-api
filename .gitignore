@@ -20,3 +20,5 @@ Sopra/private-key.pem
 Sopra/public-key.pem
 Sopra.Test/appsettings.json
 Sopra.Worker/appsettings.json
+Sopra/Services/Api/WEB/obj/Debug
+Sopra/Entities/WEB/obj/Debug

@@ -28,6 +28,7 @@ namespace Sopra.Entities
         public decimal Amount { get; set; }
         public decimal Netto { get; set; }
         public string Dealer { get; set; }
+        public string Type { get; set; }
         public decimal? Sfee { get; set; }
         public List<RegulerItem> RegulerItems { get; set; }
         public List<MixItem> MixItems { get; set; }
