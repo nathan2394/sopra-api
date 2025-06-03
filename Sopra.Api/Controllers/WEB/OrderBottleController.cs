@@ -114,13 +114,13 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
+        public async Task<IActionResult> Delete(long id, [FromQuery] int reason)
         {
             try
             {
-                var result = await _service.DeleteAsync(id);
-
+                var result = await _service.DeleteAsync(id, reason);
                 var response = new Response<object>(result);
+
                 return Ok(response);
             }
             catch (Exception ex)

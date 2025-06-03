@@ -23,7 +23,7 @@ namespace Sopra.Services
         Task<OrderBottleDto> GetByIdAsync(long id);
         Task<OrderBottleDto> CreateAsync(OrderBottleDto data);
         Task<OrderBottleDto> EditAsync(OrderBottleDto data);
-        Task<bool> DeleteAsync(long id);
+        Task<bool> DeleteAsync(long id, int reason);
     }
 
     public class OrderBottleService : OrderBottleInterface
@@ -361,7 +361,8 @@ namespace Sopra.Services
                     TaxValue = data.TaxValue,
                     Total = data.Netto,
                     Sfee = data.Sfee,
-                    DealerTier = data.Dealer
+                    DealerTier = data.Dealer,
+                    Type = data.Type
                 };
 
                 await _context.Orders.AddAsync(order);
@@ -580,7 +581,7 @@ namespace Sopra.Services
             }
         }
 
-        public async Task<bool> DeleteAsync(long id)
+        public async Task<bool> DeleteAsync(long id, int reason)
         {
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
 
@@ -590,6 +591,7 @@ namespace Sopra.Services
                 if (obj == null) return false;
 
                 obj.OrderStatus = "CANCEL";
+                obj.ReasonsID = reason;
                 obj.DateUp = DateTime.Now;
 
                 await _context.SaveChangesAsync();
