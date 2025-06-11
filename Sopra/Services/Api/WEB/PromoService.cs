@@ -79,16 +79,12 @@ namespace Sopra.Services
                             StartDate = firstItemInGroup["StartDate"] != null ? Convert.ToDateTime(firstItemInGroup["StartDate"]) : (DateTime?)null,
                             EndDate = firstItemInGroup["EndDate"] != null ? Convert.ToDateTime(firstItemInGroup["EndDate"]) : (DateTime?)null,
                             Products = new List<Products>(),
-                            Quantities = new List<Quantities>()
+                            Quantities = new Quantities {
+                                Qty1 = firstItemInGroup["Qty1"] != null ? Convert.ToInt64(firstItemInGroup["Qty1"]) : (long?)null,
+                                Qty2 = firstItemInGroup["Qty2"] != null ? Convert.ToInt64(firstItemInGroup["Qty2"]) : (long?)null,
+                                Qty3 = firstItemInGroup["Qty3"] != null ? Convert.ToInt64(firstItemInGroup["Qty3"]) : (long?)null
+                            }
                         };
-
-                        var qtySet = new Quantities {
-                            Qty1 = firstItemInGroup["Qty1"] != null ? Convert.ToInt64(firstItemInGroup["Qty1"]) : (long?)null,
-                            Qty2 = firstItemInGroup["Qty2"] != null ? Convert.ToInt64(firstItemInGroup["Qty2"]) : (long?)null,
-                            Qty3 = firstItemInGroup["Qty3"] != null ? Convert.ToInt64(firstItemInGroup["Qty3"]) : (long?)null
-                        };
-
-                        promo.Quantities.Add(qtySet);
 
                         var productsInPromoGroup = promoGroup.GroupBy(pItem => Convert.ToInt64(pItem["ProductsID"]));
                         foreach (var productGroup in productsInPromoGroup)

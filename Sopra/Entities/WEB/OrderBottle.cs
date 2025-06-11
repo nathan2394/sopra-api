@@ -48,17 +48,20 @@ namespace Sopra.Entities
     public class MixItem
     {
         public long Id { get; set; }
-        public long PromoId { get; set; }
+        public long? PromoId { get; set; }
         public long ParentId { get; set; }
         public string? WmsCode { get; set; }
+        public string Name { get; set; }
         public long? ProductsId { get; set; }
         public decimal? Qty { get; set; }
         public decimal? QtyBox { get; set; }
         public decimal? Price { get; set; }
         public decimal? Amount { get; set; }
         public string Notes { get; set; }
+        public List<ClosureItem> ClosureItems { get; set; }
         public string? ApprovalStatus { get; set; }
     }
+
     public class RegulerItem
     {
         public long Id { get; set; }

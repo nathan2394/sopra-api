@@ -12,7 +12,7 @@ namespace Sopra.Entities
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
         public List<Products> Products { get; set; }
-        public List<Quantities> Quantities { get; set; }
+        public Quantities Quantities { get; set; }
     }
     public class Products
     {
@@ -34,5 +34,10 @@ namespace Sopra.Entities
         public long? Qty1 { get; set; }
         public long? Qty2 { get; set; }
         public long? Qty3 { get; set; }
+
+        public static implicit operator List<object>(Quantities v)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

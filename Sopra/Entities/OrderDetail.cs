@@ -20,7 +20,7 @@ namespace Sopra.Entities
         public bool? FlagPromo { get; set; }
         public decimal? Outstanding { get; set; }
         public string? Note { get; set; }
-        public long?  CompaniesID { get; set; }
+        public long? CompaniesID { get; set; }
         public Order Orders { get; set; }
         [NotMapped]
         public ICollection<AccsExtOrder>? AccsExtOrders { get; set; }
@@ -30,6 +30,7 @@ namespace Sopra.Entities
         public decimal? LeadTime { get; set; }
         public string? PromosType { get; set; }
         public int? AccFlag { get; set; }
+        public string? ApprovalStatus { get; set; }
     }
 
     public class AccsExtOrder
