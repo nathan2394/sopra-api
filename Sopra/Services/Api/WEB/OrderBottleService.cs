@@ -13,6 +13,7 @@ using Sopra.Entities;
 using System.Data;
 using Newtonsoft.Json;
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 
 namespace Sopra.Services
 {
@@ -235,6 +236,10 @@ namespace Sopra.Services
                 var allRegulerItems = await _context.OrderDetails
                     .Where(x => x.OrdersID == data.ID && x.Type == "Reguler")
                     .ToListAsync();
+                    
+                var allMixItems = await _context.OrderDetails
+                    .Where(x => x.OrdersID == data.ID && x.Type == "Mix")
+                    .ToListAsync();
 
                 var productItems = await _context.ProductDetails2
                     .Where(p => p.Type == "bottle" || p.Type == "closure")
@@ -248,7 +253,7 @@ namespace Sopra.Services
 
                         var closureItems = allRegulerItems
                             .Where(c => c.ObjectType == "closures" && c.ParentID == y.ObjectID)
-                            .Join(productItems,
+                            .Join(productItems.Where(p => p.Type == "closure"),
                                 c => c.ObjectID,
                                 p => p.RefID,
                                 (c, p) => new ClosureItem
@@ -274,6 +279,46 @@ namespace Sopra.Services
                             Price = y.ProductPrice,
                             Amount = y.Amount,
                             Notes = y.Note,
+                            ClosureItems = closureItems
+                        };
+                    }).ToList();
+
+                var mixItems = allMixItems
+                    .Where(x => x.ObjectType == "bottle")
+                    .Select(y =>
+                    {
+                        var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
+
+                        var closureItems = allMixItems
+                            .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
+                            .Join(productItems.Where(p => p.Type == "closure"),
+                                c => c.ObjectID,
+                                p => p.RefID,
+                                (c, p) => new ClosureItem
+                                {
+                                    Id = c.ID,
+                                    WmsCode = p.WmsCode,
+                                    ProductsId = c.ObjectID,
+                                    Name = p.Name,
+                                    Qty = c.Qty,
+                                    QtyBox = c.QtyBox,
+                                    Price = c.ProductPrice,
+                                    Amount = c.Amount
+                                }).ToList();
+
+                        return new MixItem
+                        {
+                            Id = y.ID,
+                            ProductsId = y.ObjectID,
+                            PromoId = y.PromosID,
+                            WmsCode = currentBottle?.WmsCode,
+                            Name = currentBottle?.Name,
+                            Qty = y.Qty,
+                            QtyBox = y.QtyBox,
+                            Price = y.ProductPrice,
+                            Amount = y.Amount,
+                            Notes = y.Note,
+                            ApprovalStatus = y.ApprovalStatus,
                             ClosureItems = closureItems
                         };
                     }).ToList();
@@ -313,7 +358,8 @@ namespace Sopra.Services
                     Netto = Math.Floor(data.Total ?? 0),
                     Sfee = Math.Floor(data.Sfee ?? 0),
                     Dealer = data.DealerTier,
-                    RegulerItems = regulerItems
+                    RegulerItems = regulerItems,
+                    MixItems = mixItems
                 };
 
                 return resData;
@@ -405,7 +451,59 @@ namespace Sopra.Services
                     }
                 }
 
+                // INSERT REGULER
                 await _context.OrderDetails.AddRangeAsync(allOrderDetails);
+
+                foreach (var item in data.MixItems)
+                {
+                    var mixDetail = new OrderDetail
+                    {
+                        OrdersID = order.ID,
+                        ObjectID = item.ProductsId,
+                        ObjectType = "bottle",
+                        Type = "Mix",
+                        QtyBox = item.QtyBox,
+                        Qty = item.Qty,
+                        ProductPrice = item.Price,
+                        ParentID = 0,
+                        PromosID = item.PromoId,
+                        Amount = item.Amount,
+                        Note = item.Notes,
+                        ApprovalStatus = item.ApprovalStatus
+                    };
+
+                    _context.OrderDetails.Add(mixDetail);
+                    await _context.SaveChangesAsync();
+
+                    mixDetail.ParentID = mixDetail.ID;
+                    await _context.SaveChangesAsync();
+
+                    var closureDetails = new List<OrderDetail>();
+                    foreach (var closure in item.ClosureItems)
+                    {
+                        var closureDetail = new OrderDetail
+                        {
+                            OrdersID = order.ID,
+                            ObjectID = closure.ProductsId,
+                            ObjectType = "closures",
+                            ParentID = mixDetail.ID,
+                            PromosID = item.PromoId,
+                            Type = "Mix",
+                            QtyBox = 1,
+                            Qty = 0,
+                            ProductPrice = 0,
+                            Amount = 0
+                        };
+
+                        closureDetails.Add(closureDetail);
+                    }
+
+                    if (closureDetails.Any())
+                    {
+                        await _context.OrderDetails.AddRangeAsync(closureDetails);
+                        await _context.SaveChangesAsync();
+                    }
+                }
 
                 await Utility.AfterSave(_context, "OrderBottle", data.ID, "Add");
                 await _context.SaveChangesAsync();
@@ -556,8 +654,59 @@ namespace Sopra.Services
                     }
                 }
 
-                // await _orderBottleRepository.AddOrderDetailsAsync(allOrderDetails);
+                // INSERT REGULER
                 await _context.OrderDetails.AddRangeAsync(allOrderDetails);
+
+                foreach (var item in data.MixItems)
+                {
+                    var mixDetail = new OrderDetail
+                    {
+                        OrdersID = obj.ID,
+                        ObjectID = item.ProductsId,
+                        ObjectType = "bottle",
+                        Type = "Mix",
+                        QtyBox = item.QtyBox,
+                        Qty = item.Qty,
+                        ProductPrice = item.Price,
+                        ParentID = 0,
+                        PromosID = item.PromoId,
+                        Amount = item.Amount,
+                        Note = item.Notes,
+                        ApprovalStatus = item.ApprovalStatus
+                    };
+
+                    _context.OrderDetails.Add(mixDetail);
+                    await _context.SaveChangesAsync();
+
+                    mixDetail.ParentID = mixDetail.ID;
+                    await _context.SaveChangesAsync();
+
+                    var closureDetails = new List<OrderDetail>();
+                    foreach (var closure in item.ClosureItems)
+                    {
+                        var closureDetail = new OrderDetail
+                        {
+                            OrdersID = obj.ID,
+                            ObjectID = closure.ProductsId,
+                            ObjectType = "closures",
+                            ParentID = mixDetail.ID,
+                            PromosID = item.PromoId,
+                            Type = "Mix",
+                            QtyBox = 1,
+                            Qty = 0,
+                            ProductPrice = 0,
+                            Amount = 0
+                        };
+
+                        closureDetails.Add(closureDetail);
+                    }
+
+                    if (closureDetails.Any())
+                    {
+                        await _context.OrderDetails.AddRangeAsync(closureDetails);
+                        await _context.SaveChangesAsync();
+                    }
+                }
 
                 await Utility.AfterSave(_context, "OrderBottle", data.ID, "Edit");
                 await _context.SaveChangesAsync();
