@@ -65,6 +65,28 @@ namespace Sopra.Api.Controllers
             }
         }
 
+        [HttpGet("CheckStatus/{customerID}")]
+        public async Task<IActionResult> CheckIndukAnak(long customerID)
+        {
+            try
+            {
+                var result = await _service.CheckIndukAnakAsync(customerID);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "OrderBottleController: Check Induk Anak by Customer ID");
+                return BadRequest(new { message });
+            }
+        }
+
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] OrderBottleDto obj)
         {

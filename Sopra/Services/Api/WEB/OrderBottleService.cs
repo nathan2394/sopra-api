@@ -14,6 +14,7 @@ using System.Data;
 using Newtonsoft.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using Google.Rpc;
 
 namespace Sopra.Services
 {
@@ -22,6 +23,7 @@ namespace Sopra.Services
         Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
         string filter, string date);
         Task<OrderBottleDto> GetByIdAsync(long id);
+        Task<object> CheckIndukAnakAsync(long customerID);
         Task<OrderBottleDto> CreateAsync(OrderBottleDto data);
         Task<OrderBottleDto> EditAsync(OrderBottleDto data);
         Task<bool> DeleteAsync(long id, int reason);
@@ -36,16 +38,17 @@ namespace Sopra.Services
         {
             _orderBottleRepository = orderBottleRepository;
         }
-        
+
         public OrderBottleService(EFContext context)
         {
             _context = context;
         }
 
-        private async Task<string> generateVoucherNo()
+        private async Task<string> generateVoucherNo(long companyId)
         {
             // Get the current year (YY)
             var currentYear = DateTime.Now.ToString("yy");
+            var company = companyId == 1 ? "SOPRA" : "TRASS";
 
             // Fetch the last voucher number for the current year
             // var lastVoucher = await _orderBottleRepository.GetLastOrderIdAsync();
@@ -61,7 +64,7 @@ namespace Sopra.Services
                 nextNumber = lastVoucher + 1;
             }
 
-            var newVoucherNo = $"SOPRA/SC/N/{currentYear}/{nextNumber:D5}";
+            var newVoucherNo = $"{company}/SC/N/{currentYear}/{nextNumber:D5}";
             return Convert.ToString(newVoucherNo);
         }
 
@@ -236,7 +239,7 @@ namespace Sopra.Services
                 var allRegulerItems = await _context.OrderDetails
                     .Where(x => x.OrdersID == data.ID && x.Type == "Reguler")
                     .ToListAsync();
-                    
+
                 var allMixItems = await _context.OrderDetails
                     .Where(x => x.OrdersID == data.ID && x.Type == "Mix")
                     .ToListAsync();
@@ -374,6 +377,50 @@ namespace Sopra.Services
             }
         }
 
+        public async Task<object> CheckIndukAnakAsync(long customerID)
+        {
+            try
+            {
+                var obj = await _context.Orders.FirstOrDefaultAsync
+                (
+                    x => x.CustomersID == customerID &&
+                    x.IsDeleted == false &&
+                    x.OrderStatus == "ACTIVE" &&
+                    x.Status == "INDUK" &&
+                    x.TransDate >= DateTime.UtcNow.AddDays(-30)
+                );
+
+                if (obj == null)
+                {
+                    return new
+                    {
+                        data = new
+                        {
+                            Status = false,
+                            Disc1 = 0
+                        }
+                    };
+                }
+
+                return new
+                {
+                    data = new
+                    {
+                        Status = true,
+                        Disc1 = obj.Disc1
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                throw;
+            }
+        }
+
         public async Task<OrderBottleDto> CreateAsync(OrderBottleDto data)
         {
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
@@ -381,14 +428,14 @@ namespace Sopra.Services
             {
                 Trace.WriteLine($"payload order from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
 
-                var newVoucherNo = await generateVoucherNo();
+                var newVoucherNo = await generateVoucherNo(data.CompanyId);
                 data.VoucherNo = Convert.ToString(newVoucherNo);
 
                 var order = new Order
                 {
                     OrderNo = data.VoucherNo,
                     RefID = data.RefID,
-                    TransDate = data.TransDate,
+                    TransDate = DateTime.Now,
                     ReferenceNo = data.ReferenceNo,
                     CustomersID = data.CustomerId,
                     CompaniesID = data.CompanyId,
@@ -414,6 +461,10 @@ namespace Sopra.Services
                 await _context.Orders.AddAsync(order);
                 await _context.SaveChangesAsync();
 
+                Trace.WriteLine($"Original TransDate from payload: {data.TransDate}");
+                Trace.WriteLine($"TransDate being saved: {order.TransDate}");
+
+                // INSERT REGULER
                 var allOrderDetails = new List<OrderDetail>();
                 foreach (var item in data.RegulerItems)
                 {
@@ -451,9 +502,9 @@ namespace Sopra.Services
                     }
                 }
 
-                // INSERT REGULER
                 await _context.OrderDetails.AddRangeAsync(allOrderDetails);
 
+                // INSERT MIX
                 foreach (var item in data.MixItems)
                 {
                     var mixDetail = new OrderDetail
@@ -534,7 +585,7 @@ namespace Sopra.Services
                 Trace.WriteLine($"payload order from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
 
                 var obj = null as Order;
-                
+
                 obj = await _context.Orders.FirstOrDefaultAsync(x => x.ID == data.ID && x.IsDeleted == false);
                 if (obj == null) return null;
 
