@@ -461,9 +461,6 @@ namespace Sopra.Services
                 await _context.Orders.AddAsync(order);
                 await _context.SaveChangesAsync();
 
-                Trace.WriteLine($"Original TransDate from payload: {data.TransDate}");
-                Trace.WriteLine($"TransDate being saved: {order.TransDate}");
-
                 // INSERT REGULER
                 var allOrderDetails = new List<OrderDetail>();
                 foreach (var item in data.RegulerItems)
