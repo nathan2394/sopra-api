@@ -35,9 +35,6 @@ namespace Sopra.Services
                 await _context.Users.AddAsync(data);
                 await _context.SaveChangesAsync();
 
-                // Check Validate
-                await Utility.AfterSave(_context, "User", data.ID, "Add");
-
                 await dbTrans.CommitAsync();
 
                 return data;

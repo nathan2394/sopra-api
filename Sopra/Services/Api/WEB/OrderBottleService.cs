@@ -23,10 +23,10 @@ namespace Sopra.Services
         Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
         string filter, string date);
         Task<OrderBottleDto> GetByIdAsync(long id);
-        Task<object> CheckIndukAnakAsync(long customerID);
-        Task<OrderBottleDto> CreateAsync(OrderBottleDto data);
-        Task<OrderBottleDto> EditAsync(OrderBottleDto data);
-        Task<bool> DeleteAsync(long id, int reason);
+        Task<object> CheckIndukAnakAsync(long customerID, long companyID);
+        Task<OrderBottleDto> CreateAsync(OrderBottleDto data, int userId);
+        Task<OrderBottleDto> EditAsync(OrderBottleDto data, int userId);
+        Task<bool> DeleteAsync(long id, int reason, int userId);
     }
 
     public class OrderBottleService : OrderBottleInterface
@@ -113,6 +113,7 @@ namespace Sopra.Services
                                 "orderstatus" => query.Where(x => x.Order.OrderStatus.Contains(value)),
                                 "customersid" => query.Where(x => x.Order.CustomersID.ToString().Equals(value)),
                                 "referenceno" => query.Where(x => x.Order.ReferenceNo.Contains(value)),
+                                "companyid" => query.Where(x => x.Order.CompaniesID.ToString().Equals(value)),
                                 _ => query
                             };
                         }
@@ -377,7 +378,7 @@ namespace Sopra.Services
             }
         }
 
-        public async Task<object> CheckIndukAnakAsync(long customerID)
+        public async Task<object> CheckIndukAnakAsync(long customerID, long companyID)
         {
             try
             {
@@ -387,7 +388,8 @@ namespace Sopra.Services
                     x.IsDeleted == false &&
                     x.OrderStatus == "ACTIVE" &&
                     x.Status == "INDUK" &&
-                    x.TransDate >= DateTime.UtcNow.AddDays(-30)
+                    x.TransDate >= DateTime.UtcNow.AddDays(-30) &&
+                    x.CompaniesID == companyID
                 );
 
                 if (obj == null)
@@ -421,7 +423,7 @@ namespace Sopra.Services
             }
         }
 
-        public async Task<OrderBottleDto> CreateAsync(OrderBottleDto data)
+        public async Task<OrderBottleDto> CreateAsync(OrderBottleDto data, int userId)
         {
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
             try
@@ -557,6 +559,23 @@ namespace Sopra.Services
                 await _context.SaveChangesAsync();
 
                 Trace.WriteLine($"payload order after save data into database = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+
+                var logs = new UserLog
+                {
+                    ObjectID = order.ID,
+                    ModuleID = 1,
+                    UserID = userId,
+                    Description = $"Order " + order.OrderNo + " was created.",
+                    TransDate = DateTime.Now,
+                    DateIn = DateTime.Now,
+                    UserIn = userId,
+                    UserUp = 0,
+                    IsDeleted = false
+                };
+
+                await _context.UserLogs.AddAsync(logs);
+                await _context.SaveChangesAsync();
+
                 await dbTrans.CommitAsync();
 
                 return data;
@@ -574,7 +593,7 @@ namespace Sopra.Services
             }
         }
 
-        public async Task<OrderBottleDto> EditAsync(OrderBottleDto data)
+        public async Task<OrderBottleDto> EditAsync(OrderBottleDto data, int userId)
         {
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
             try
@@ -589,7 +608,7 @@ namespace Sopra.Services
                 obj.CustomersID = data.CustomerId;
                 obj.ReferenceNo = data.ReferenceNo;
                 // obj.Other = data.Other;
-                obj.Amount = data.Dpp;
+                obj.Amount = data.Amount;
                 obj.Status = data.DiscStatus;
                 obj.VouchersID = data.VouchersID;
                 obj.Disc1 = data.DiscPercentage;
@@ -760,6 +779,23 @@ namespace Sopra.Services
                 await _context.SaveChangesAsync();
 
                 Trace.WriteLine($"payload order after save data into database = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+
+                var logs = new UserLog
+                {
+                    ObjectID = obj.ID,
+                    ModuleID = 1,
+                    UserID = userId,
+                    Description = $"Order " + obj.OrderNo + " was edited.",
+                    TransDate = DateTime.Now,
+                    DateIn = DateTime.Now,
+                    UserIn = userId,
+                    UserUp = 0,
+                    IsDeleted = false
+                };
+
+                await _context.UserLogs.AddAsync(logs);
+                await _context.SaveChangesAsync();
+
                 await dbTrans.CommitAsync();
 
                 return data;
@@ -778,7 +814,7 @@ namespace Sopra.Services
             }
         }
 
-        public async Task<bool> DeleteAsync(long id, int reason)
+        public async Task<bool> DeleteAsync(long id, int reason, int userId)
         {
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
 
@@ -794,6 +830,23 @@ namespace Sopra.Services
                 await _context.SaveChangesAsync();
 
                 await Utility.AfterSave(_context, "OrderBottle", id, "Delete");
+
+                var logs = new UserLog
+                {
+                    ObjectID = id,
+                    ModuleID = 1,
+                    UserID = userId,
+                    Description = $"Order " + obj.OrderNo + " was cancelled.",
+                    TransDate = DateTime.Now,
+                    DateIn = DateTime.Now,
+                    UserIn = userId,
+                    UserUp = 0,
+                    IsDeleted = false
+                };
+
+                await _context.UserLogs.AddAsync(logs);
+                await _context.SaveChangesAsync();
+
                 await dbTrans.CommitAsync();
 
                 return true;

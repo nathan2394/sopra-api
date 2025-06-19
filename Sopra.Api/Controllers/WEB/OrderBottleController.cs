@@ -6,11 +6,13 @@ using System.Diagnostics;
 using Sopra.Services;
 using Sopra.Entities;
 using Sopra.Responses;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Sopra.Api.Controllers
 {
     [ApiController]
     [Route("OrderBottle")]
+    [Authorize]
     public class OrderBottleController : ControllerBase
     {
         private readonly OrderBottleInterface _service;
@@ -18,6 +20,17 @@ namespace Sopra.Api.Controllers
         public OrderBottleController(OrderBottleInterface service)
         {
             _service = service;
+        }
+
+        private async Task<int> getUserId()
+        {
+            var userIdClaim = User.FindFirst("id")?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            {
+                return 0;
+            }
+
+            return userId;
         }
 
         [HttpGet]
@@ -65,12 +78,12 @@ namespace Sopra.Api.Controllers
             }
         }
 
-        [HttpGet("CheckStatus/{customerID}")]
-        public async Task<IActionResult> CheckIndukAnak(long customerID)
+        [HttpGet("CheckStatus")]
+        public async Task<IActionResult> CheckIndukAnak(long customerID, long companyID)
         {
             try
             {
-                var result = await _service.CheckIndukAnakAsync(customerID);
+                var result = await _service.CheckIndukAnakAsync(customerID, companyID);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -92,8 +105,10 @@ namespace Sopra.Api.Controllers
         {
             try
             {
+                var userId = await getUserId();
+                if (userId == 0) return BadRequest("Invalid Token");
 
-                var result = await _service.CreateAsync(obj);
+                var result = await _service.CreateAsync(obj, userId);
 
                 var response = new Response<OrderBottleDto>(result);
                 return Ok(response);
@@ -117,7 +132,10 @@ namespace Sopra.Api.Controllers
         {
             try
             {
-                var result = await _service.EditAsync(obj);
+                var userId = await getUserId();
+                if (userId == 0) return BadRequest("Invalid Token");
+
+                var result = await _service.EditAsync(obj, userId);
                 var response = new Response<OrderBottleDto>(result);
                 return Ok(response);
             }
@@ -140,7 +158,10 @@ namespace Sopra.Api.Controllers
         {
             try
             {
-                var result = await _service.DeleteAsync(id, reason);
+                var userId = await getUserId();
+                if (userId == 0) return BadRequest("Invalid Token");
+
+                var result = await _service.DeleteAsync(id, reason, userId);
                 var response = new Response<object>(result);
 
                 return Ok(response);

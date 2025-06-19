@@ -6,6 +6,7 @@ namespace Sopra.Entities
     [Table(name: "Users")]
     public class User : Entity
     {
+        public long ID { get; set; }
         public long? RefID { get; set; }
         public string? Email { get; set; }
         public string? Password { get; set; }
