@@ -437,7 +437,7 @@ namespace Sopra.Services
                 {
                     OrderNo = data.VoucherNo,
                     RefID = data.RefID,
-                    TransDate = DateTime.Now,
+                    TransDate = Utility.getCurrentTimestamps(),
                     ReferenceNo = data.ReferenceNo,
                     CustomersID = data.CustomerId,
                     CompaniesID = data.CompanyId,
@@ -566,8 +566,8 @@ namespace Sopra.Services
                     ModuleID = 1,
                     UserID = userId,
                     Description = $"Order " + order.OrderNo + " was created.",
-                    TransDate = DateTime.Now,
-                    DateIn = DateTime.Now,
+                    TransDate = Utility.getCurrentTimestamps(),
+                    DateIn = Utility.getCurrentTimestamps(),
                     UserIn = userId,
                     UserUp = 0,
                     IsDeleted = false
@@ -607,7 +607,6 @@ namespace Sopra.Services
 
                 obj.CustomersID = data.CustomerId;
                 obj.ReferenceNo = data.ReferenceNo;
-                // obj.Other = data.Other;
                 obj.Amount = data.Amount;
                 obj.Status = data.DiscStatus;
                 obj.VouchersID = data.VouchersID;
@@ -620,70 +619,31 @@ namespace Sopra.Services
                 obj.TAX = data.Tax;
                 obj.TaxValue = data.TaxValue;
                 obj.Total = data.Netto;
-                // obj.Departure = data.Departure;
-                // obj.Arrival = data.Arrival;
-                // obj.WarehouseID = data.WarehouseID;
-                // obj.CountriesID = data.CountriesID;
-                // obj.ProvincesID = data.ProvincesID;
-                // obj.RegenciesID = data.RegenciesID;
-                // obj.DistrictsID = data.DistrictsID;
-                // obj.Address = data.Address;
-                // obj.PostalCode = data.PostalCode;
-                // obj.TransportsID = data.TransportsID;
-                // obj.TotalTransport = data.TotalTransport;
-                // obj.TotalTransportCapacity = data.TotalTransportCapacity;
-                // obj.TotalOrderCapacity = data.TotalOrderCapacity;
-                // obj.TotalOrderWeight = data.TotalOrderWeight;
-                // obj.TotalTransportCost = data.TotalTransportCost;
-                // obj.RemainingCapacity = data.RemainingCapacity;
-                // obj.ReasonsID = data.ReasonsID;
-                // obj.ExpeditionsID = data.ExpeditionsID;
-                // obj.BiayaPickup = data.BiayaPickup;
-                // obj.CheckInvoice = data.CheckInvoice;
-                // obj.InvoicedDate = data.InvoicedDate;
                 obj.TotalReguler = data.TotalReguler;
-                // obj.TotalJumbo = data.TotalJumbo;
                 obj.TotalMix = data.TotalMix;
-                // obj.TotalNewPromo = data.TotalNewPromo;
-                // obj.TotalSupersale = data.TotalSupersale;
-                // obj.ValidTime = data.ValidTime;
-                // obj.DealerTier = data.DealerTier;
-                // obj.DeliveryStatus = data.DeliveryStatus;
-                // obj.PartialDeliveryStatus = data.PartialDeliveryStatus;
-                // obj.PaymentTerm = data.PaymentTerm;
-                // obj.Validity = data.Validity;
-                // obj.IsVirtual = data.IsVirtual;
-                // obj.VirtualAccount = data.VirtualAccount;
-                // obj.BanksID = data.BanksID;
-                // obj.ShipmentNum = data.ShipmentNum;
-                // obj.PaidDate = data.PaidDate;
-                // obj.RecreateOrderStatus = data.RecreateOrderStatus;
-                // obj.CompaniesID = data.CompaniesID;
-                // obj.AmountTotal = data.AmountTotal;
-                // obj.FutureDateStatus = data.FutureDateStatus;
-                // obj.ChangeExpeditionStatus = data.ChangeExpeditionStatus;
-                // obj.ChangetruckStatus = data.ChangetruckStatus;
-                // obj.SubscriptionCount = data.SubscriptionCount;
-                // obj.SubscriptionStatus = data.SubscriptionStatus;
-                // obj.SubscriptionDate = data.SubscriptionDate;
-                // obj.Username = data.Username;
-                // obj.UsernameCancel = data.UsernameCancel;
-                // obj.SessionID = data.SessionID;
-                // obj.SessionDate = data.SessionDate;
-                // obj.Type = data.Type;
-                // obj.PaymentStatus = data.PaymentStatus;
-                // obj.Label = data.Label;
-                // obj.Landmark = data.Landmark;
-                // obj.IsExpress = data.IsExpress;
-                // obj.UserIn = userId;
 
-                // obj.UserUp = data.UserUp;
-
+                obj.UserUp = userId;
                 obj.DateUp = Utility.getCurrentTimestamps();
 
+                // STORE EXISTING REGULER FOR COMPARISON
+                var existingRegulerDetails = await _context.OrderDetails
+                .Where(d => d.OrdersID == obj.ID && d.Type == "Reguler" && d.ObjectType == "bottle")
+                .Join(_context.ProductDetails2,
+                    od => od.ObjectID,
+                    p => p.RefID,
+                    (od, p) => new
+                    {
+                        ProductsId = od.ObjectID,
+                        ProductName = p.Name,
+                        Qty = od.Qty
+                    })
+                .ToListAsync();
+
+                // REMOVE EXISTING REGULER
                 var existingReguler = _context.OrderDetails.Where(d => d.OrdersID == obj.ID);
                 _context.OrderDetails.RemoveRange(existingReguler);
 
+                // MAP REGULER PAYLOAD
                 var allOrderDetails = new List<OrderDetail>();
                 foreach (var item in data.RegulerItems)
                 {
@@ -724,6 +684,7 @@ namespace Sopra.Services
                 // INSERT REGULER
                 await _context.OrderDetails.AddRangeAsync(allOrderDetails);
 
+                // MAP MIX PRODUCT PAYLOAD
                 foreach (var item in data.MixItems)
                 {
                     var mixDetail = new OrderDetail
@@ -742,12 +703,14 @@ namespace Sopra.Services
                         ApprovalStatus = item.ApprovalStatus
                     };
 
+                    // INSERT MIX PRODUCT
                     _context.OrderDetails.Add(mixDetail);
                     await _context.SaveChangesAsync();
 
                     mixDetail.ParentID = mixDetail.ID;
                     await _context.SaveChangesAsync();
 
+                    // MAP MIX CLOSURE PAYLOAD
                     var closureDetails = new List<OrderDetail>();
                     foreach (var closure in item.ClosureItems)
                     {
@@ -770,6 +733,7 @@ namespace Sopra.Services
 
                     if (closureDetails.Any())
                     {
+                        // INSERT MIX CLOSURE
                         await _context.OrderDetails.AddRangeAsync(closureDetails);
                         await _context.SaveChangesAsync();
                     }
@@ -780,14 +744,70 @@ namespace Sopra.Services
 
                 Trace.WriteLine($"payload order after save data into database = " + JsonConvert.SerializeObject(data, Formatting.Indented));
 
+                // COMPARE CHANGES (QTY)
+                var RegulerQtyChanges = new List<string>();
+                
+                foreach (var newItem in data.RegulerItems)
+                {
+                    var existingItem = existingRegulerDetails.FirstOrDefault(x => x.ProductsId == newItem.ProductsId);
+                    
+                    if (existingItem != null)
+                    {
+                        // ITEM EXIST, CHECK IF QTY CHANGED
+                        if (existingItem.Qty != newItem.Qty)
+                        {
+                            RegulerQtyChanges.Add($"{existingItem.ProductName} qty's changed from {existingItem.Qty:N0} to {newItem.Qty:N0}.");
+                        }
+                    }
+                    else
+                    {
+                        // NEW ITEM ADDED
+                        var productName = await _context.ProductDetails2
+                            .Where(p => p.RefID == newItem.ProductsId)
+                            .Select(p => p.Name)
+                            .FirstOrDefaultAsync();
+                        
+                        if (!string.IsNullOrEmpty(productName))
+                        {
+                            RegulerQtyChanges.Add($"{productName} was added with qty {newItem.Qty:N0}.");
+                        }
+                    }
+                }
+
+                // CHECK FOR REMOVED ITEMS
+                foreach (var existingItem in existingRegulerDetails)
+                {
+                    var newItem = data.RegulerItems.FirstOrDefault(x => x.ProductsId == existingItem.ProductsId);
+                    if (newItem == null)
+                    {
+                        // ITEM WAS REMOVED
+                        RegulerQtyChanges.Add($"{existingItem.ProductName} was removed.");
+                    }
+                }
+
+                // MAP THE DESCRIPTION
+                var description = $"Order {obj.OrderNo} was updated.";
+                if (RegulerQtyChanges.Any())
+                {
+                    description += "<br/><br/>Reguler Items:";
+
+                    description += "<br/><ul>";
+                    foreach (var change in RegulerQtyChanges)
+                    {
+                        description += $"<li>{change}</li>";
+                    }
+
+                    description += "</ul>";
+                }
+
                 var logs = new UserLog
                 {
                     ObjectID = obj.ID,
                     ModuleID = 1,
                     UserID = userId,
-                    Description = $"Order " + obj.OrderNo + " was edited.",
-                    TransDate = DateTime.Now,
-                    DateIn = DateTime.Now,
+                    Description = description,
+                    TransDate = Utility.getCurrentTimestamps(),
+                    DateIn = Utility.getCurrentTimestamps(),
                     UserIn = userId,
                     UserUp = 0,
                     IsDeleted = false
@@ -825,7 +845,7 @@ namespace Sopra.Services
 
                 obj.OrderStatus = "CANCEL";
                 obj.ReasonsID = reason;
-                obj.DateUp = DateTime.Now;
+                obj.DateUp = Utility.getCurrentTimestamps();
 
                 await _context.SaveChangesAsync();
 
@@ -837,8 +857,8 @@ namespace Sopra.Services
                     ModuleID = 1,
                     UserID = userId,
                     Description = $"Order " + obj.OrderNo + " was cancelled.",
-                    TransDate = DateTime.Now,
-                    DateIn = DateTime.Now,
+                    TransDate = Utility.getCurrentTimestamps(),
+                    DateIn = Utility.getCurrentTimestamps(),
                     UserIn = userId,
                     UserUp = 0,
                     IsDeleted = false
