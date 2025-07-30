@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 using Sopra.Helpers;
@@ -12,9 +11,8 @@ using Sopra.Responses;
 using Sopra.Entities;
 using System.Data;
 using Newtonsoft.Json;
-using Microsoft.Extensions.Configuration;
-using Microsoft.EntityFrameworkCore.Migrations.Operations;
-using Google.Rpc;
+using System.Configuration;
+using Google.Protobuf.WellKnownTypes;
 
 namespace Sopra.Services
 {
@@ -24,7 +22,7 @@ namespace Sopra.Services
         string filter, string date);
         Task<OrderBottleDto> GetByIdAsync(long id);
         Task<object> CheckIndukAnakAsync(long customerID, long companyID);
-        Task<OrderBottleDto> CreateAsync(OrderBottleDto data, int userId);
+        Task<Order> CreateAsync(OrderBottleDto data, int userId);
         Task<OrderBottleDto> EditAsync(OrderBottleDto data, int userId);
         Task<bool> DeleteAsync(long id, int reason, int userId);
     }
@@ -33,39 +31,98 @@ namespace Sopra.Services
     {
         private readonly EFContext _context;
         private readonly IOrderBottleRepository _orderBottleRepository;
+        private readonly InvoiceBottleService _invoiceService;
 
         public OrderBottleService(IOrderBottleRepository orderBottleRepository)
         {
             _orderBottleRepository = orderBottleRepository;
         }
-
-        public OrderBottleService(EFContext context)
+        public OrderBottleService(EFContext context, InvoiceBottleService invoiceService)
         {
             _context = context;
+            _invoiceService = invoiceService;
         }
 
-        private async Task<string> generateVoucherNo(long companyId)
+        private void ValidateSave(OrderBottleDto data)
         {
-            // Get the current year (YY)
-            var currentYear = DateTime.Now.ToString("yy");
-            var company = companyId == 1 ? "SOPRA" : "TRASS";
-
-            // Fetch the last voucher number for the current year
-            // var lastVoucher = await _orderBottleRepository.GetLastOrderIdAsync();
-            var lastVoucher = await _context.Orders
-                .OrderByDescending(x => x.ID)
-                .Select(x => x.ID)
-                .FirstOrDefaultAsync();
-
-            // Determine the next voucher number
-            long nextNumber = 1; // Default to 1 if no vouchers exist for the year
-            if (lastVoucher != 0)
+            // STATUS
+            if (data.OrderStatus == "CANCEL")
             {
-                nextNumber = lastVoucher + 1;
+                throw new ArgumentException("Can't take any action, Order is already cancelled.");
             }
 
-            var newVoucherNo = $"{company}/SC/N/{currentYear}/{nextNumber:D5}";
-            return Convert.ToString(newVoucherNo);
+            // CUSTOMER
+            if (data.CustomerId <= 0)
+            {
+                throw new ArgumentException("Customer must not be empty.");
+            }
+
+            // REGULER ITEMS
+            if (data.RegulerItems != null && data.RegulerItems.Any())
+            {
+                for (int i = 0; i < data.RegulerItems.Count; i++)
+                {
+                    var item = data.RegulerItems[i];
+                    if (item.ProductsId > 0 && (item.Amount == null || item.Amount <= 0))
+                    {
+                        throw new ArgumentException($"Reguler Item's amount, price, and quantity must not be empty: Item no. {i + 1}.");
+                    }
+                }
+            }
+
+            // MIX ITEMS
+            if (data.MixItems != null && data.MixItems.Any())
+            {
+                for (int i = 0; i < data.MixItems.Count; i++)
+                {
+                    var item = data.MixItems[i];
+                    if (item.ProductsId > 0 && (item.Amount == null || item.Amount <= 0))
+                    {
+                        throw new ArgumentException($"Mix Item's amount, price, and quantity must not be empty: Set no. {i + 1}.");
+                    }
+                }
+            }
+
+            // INVOICE ITEMS
+            if (data.InvoiceItems != null && data.InvoiceItems.Any())
+            {
+                decimal totalInvoiceAmount = 0;
+                decimal totalOrderAmount = data.Netto;
+
+                foreach (var item in data.InvoiceItems)
+                {
+                    if (item.Netto <= 0)
+                    {
+                        throw new ArgumentException($"Invoice amount must be greater than 0.");
+                    }
+
+                    totalInvoiceAmount += item.Netto ?? 0;
+                }
+                
+                if (totalInvoiceAmount != totalOrderAmount)
+                {
+                    throw new ArgumentException($"Invoice amount should be equal to order amount.");
+                }
+            }
+        }
+
+        private async Task<string> GenerateVoucherNo(long companyId)
+        {
+            var currentYear = DateTime.Now.Year;
+            var currentYearString = DateTime.Now.ToString("yy");
+            var company = companyId == 1 ? "SOPRA" : "TRASS";
+
+            // Get the last ID from the appropriate table for the current year
+            var lastId = await _context.Orders
+                    .Where(x => x.TransDate.HasValue && x.TransDate.Value.Year == currentYear)
+                    .OrderByDescending(x => x.ID)
+                    .Select(x => x.ID)
+                    .FirstOrDefaultAsync();
+
+            var nextNumber = lastId + 1;
+            var docType = "SC";
+
+            return $"{company}/{docType}/N/{currentYearString}/{nextNumber:D5}";
         }
 
         public async Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort, string filter, string date)
@@ -214,7 +271,9 @@ namespace Sopra.Services
                         HandleBy = x.Order.Username,
                         Status = x.Order.OrderStatus,
                     };
-                }).ToList();
+                })
+                .Distinct()
+                .ToList();
 
                 return new ListResponse<dynamic>(resData, total, page);
             }
@@ -423,16 +482,18 @@ namespace Sopra.Services
             }
         }
 
-        public async Task<OrderBottleDto> CreateAsync(OrderBottleDto data, int userId)
+        public async Task<Order> CreateAsync(OrderBottleDto data, int userId)
         {
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
             try
             {
                 Trace.WriteLine($"payload order from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                ValidateSave(data);
 
-                var newVoucherNo = await generateVoucherNo(data.CompanyId);
-                data.VoucherNo = Convert.ToString(newVoucherNo);
+                var newOrderNo = await GenerateVoucherNo(data.CompanyId);
+                data.VoucherNo = Convert.ToString(newOrderNo);
 
+                var logItems = new List<UserLog>();
                 var order = new Order
                 {
                     OrderNo = data.VoucherNo,
@@ -462,6 +523,21 @@ namespace Sopra.Services
 
                 await _context.Orders.AddAsync(order);
                 await _context.SaveChangesAsync();
+
+                var orderLogs = new UserLog
+                {
+                    ObjectID = order.ID,
+                    ModuleID = 1,
+                    UserID = userId,
+                    Description = "Order was created.",
+                    TransDate = Utility.getCurrentTimestamps(),
+                    DateIn = Utility.getCurrentTimestamps(),
+                    UserIn = userId,
+                    UserUp = 0,
+                    IsDeleted = false
+                };
+
+                logItems.Add(orderLogs); 
 
                 // INSERT REGULER
                 var allOrderDetails = new List<OrderDetail>();
@@ -555,30 +631,40 @@ namespace Sopra.Services
                     }
                 }
 
+                // INSERT INVOICES
+                foreach (var item in data.InvoiceItems)
+                {
+                    var refinedItem = new InvoiceBottle
+                    {
+                        RefID = item.RefID,
+                        OrdersID = order.ID,
+                        CustomersID = data.CustomerId,
+                        CompanyID = data.CompanyId,
+                        CreatedBy = data.CreatedBy,
+                        PaymentMethod = item.PaymentMethod,
+                        Refund = item.Refund,
+                        Bill = item.Bill,
+                        Netto = item.Netto,
+                        Type = item.Type,
+                        Status = item.Status,
+                        DueDate = item.DueDate,
+                        FlagInv = item.FlagInv
+                    };
+
+                    var invoice = await _invoiceService.CreateInvoiceAsync(refinedItem, userId);
+                }
+
                 await Utility.AfterSave(_context, "OrderBottle", data.ID, "Add");
                 await _context.SaveChangesAsync();
 
                 Trace.WriteLine($"payload order after save data into database = " + JsonConvert.SerializeObject(data, Formatting.Indented));
 
-                var logs = new UserLog
-                {
-                    ObjectID = order.ID,
-                    ModuleID = 1,
-                    UserID = userId,
-                    Description = $"Order " + order.OrderNo + " was created.",
-                    TransDate = Utility.getCurrentTimestamps(),
-                    DateIn = Utility.getCurrentTimestamps(),
-                    UserIn = userId,
-                    UserUp = 0,
-                    IsDeleted = false
-                };
-
-                await _context.UserLogs.AddAsync(logs);
+                await _context.UserLogs.AddRangeAsync(logItems);
                 await _context.SaveChangesAsync();
 
                 await dbTrans.CommitAsync();
 
-                return data;
+                return order;
             }
             catch (Exception ex)
             {
@@ -587,6 +673,7 @@ namespace Sopra.Services
                     Trace.WriteLine(ex.StackTrace);
 
                 Trace.WriteLine($"error save data order, payload = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+
                 await dbTrans.RollbackAsync();
                 Trace.WriteLine($"rollback db");
                 throw;
@@ -599,6 +686,7 @@ namespace Sopra.Services
             try
             {
                 Trace.WriteLine($"payload order from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                ValidateSave(data);
 
                 var obj = null as Order;
 
@@ -639,7 +727,7 @@ namespace Sopra.Services
                     })
                 .ToListAsync();
 
-                // REMOVE EXISTING REGULER
+                // REMOVE EXISTING DETAILS (REGULER, MIX)
                 var existingReguler = _context.OrderDetails.Where(d => d.OrdersID == obj.ID);
                 _context.OrderDetails.RemoveRange(existingReguler);
 
@@ -739,6 +827,118 @@ namespace Sopra.Services
                     }
                 }
 
+                // STORE EXISTING INVOICES FOR COMPARISON
+                var existingInvoices = await _context.Invoices
+                .Where(i => i.OrdersID == obj.ID)
+                .ToListAsync();
+
+                // INSERT/UPDATE INVOICES
+                foreach (var item in data.InvoiceItems)
+                {
+                    if (item.ID != 0)
+                    {
+                        // UPDATE EXISTING INVOICE
+                        var existingInvoice = existingInvoices.FirstOrDefault(x => x.ID == item.ID);
+
+                        // Track changes for logging
+                        var invoiceChanges = new List<string>();
+
+                        if (existingInvoice.Netto != item.Netto)
+                        {
+                            invoiceChanges.Add($"Netto changed from {existingInvoice.Netto:N2} to {item.Netto:N2}");
+                            existingInvoice.Netto = item.Netto;
+                        }
+
+                        if (existingInvoice.DueDate != item.DueDate)
+                        {
+                            invoiceChanges.Add($"Due date changed from {existingInvoice.DueDate:dd/MM/yyyy} to {item.DueDate:dd/MM/yyyy}");
+                            existingInvoice.DueDate = item.DueDate;
+                        }
+
+                        if (existingInvoice.PaymentMethod != item.PaymentMethod)
+                        {
+                            invoiceChanges.Add($"Payment method changed from {existingInvoice.PaymentMethod} to {item.PaymentMethod}");
+                            existingInvoice.PaymentMethod = item.PaymentMethod;
+                        }
+
+                        // Update other fields that might have changed
+                        if (existingInvoice.Refund != item.Refund)
+                        {
+                            invoiceChanges.Add($"Refund changed from {existingInvoice.Refund} to {item.Refund}");
+                            existingInvoice.Refund = item.Refund;
+                        }
+
+                        if (existingInvoice.Bill != item.Bill)
+                        {
+                            invoiceChanges.Add($"Bill changed from {existingInvoice.Bill} to {item.Bill}");
+                            existingInvoice.Bill = item.Bill;
+                        }
+
+                        if (existingInvoice.FlagInv != item.FlagInv)
+                        {
+                            invoiceChanges.Add($"Flag changed from {existingInvoice.FlagInv} to {item.FlagInv}");
+                            existingInvoice.FlagInv = item.FlagInv;
+                        }
+
+                        existingInvoice.UserUp = userId;
+                        existingInvoice.DateUp = Utility.getCurrentTimestamps();
+
+                        _context.Invoices.Update(existingInvoice);
+                        await _context.SaveChangesAsync();
+
+                        if (invoiceChanges.Any())
+                        {
+                            var invoiceDescription = "Invoice was updated.";
+                            invoiceDescription += $"<br/><br/>{existingInvoice.InvoiceNo}:";
+
+                            invoiceDescription += "<br/><ul>";
+                            foreach (var change in invoiceChanges)
+                            {
+                                invoiceDescription += $"<li>{change}</li>";
+                            }
+
+                            invoiceDescription += "</ul>";
+
+                            var invoiceLog = new UserLog
+                            {
+                                ObjectID = existingInvoice.ID,
+                                ModuleID = 2, // Invoice module
+                                UserID = userId,
+                                Description = invoiceDescription,
+                                TransDate = Utility.getCurrentTimestamps(),
+                                DateIn = Utility.getCurrentTimestamps(),
+                                UserIn = userId,
+                                UserUp = 0,
+                                IsDeleted = false
+                            };
+
+                            await _context.UserLogs.AddAsync(invoiceLog);
+                            await _context.SaveChangesAsync();
+                        }
+                    }
+                    else
+                    {
+                        var refinedItem = new InvoiceBottle
+                        {
+                            RefID = item.RefID,
+                            OrdersID = obj.ID,
+                            CustomersID = data.CustomerId,
+                            CompanyID = data.CompanyId,
+                            CreatedBy = data.CreatedBy,
+                            PaymentMethod = item.PaymentMethod,
+                            Refund = item.Refund,
+                            Bill = item.Bill,
+                            Netto = item.Netto,
+                            Type = item.Type,
+                            Status = item.Status,
+                            DueDate = item.DueDate,
+                            FlagInv = item.FlagInv
+                        };
+
+                        var invoice = await _invoiceService.CreateInvoiceAsync(refinedItem, userId);
+                    }
+                }
+
                 await Utility.AfterSave(_context, "OrderBottle", data.ID, "Edit");
                 await _context.SaveChangesAsync();
 
@@ -750,7 +950,7 @@ namespace Sopra.Services
                 foreach (var newItem in data.RegulerItems)
                 {
                     var existingItem = existingRegulerDetails.FirstOrDefault(x => x.ProductsId == newItem.ProductsId);
-                    
+
                     if (existingItem != null)
                     {
                         // ITEM EXIST, CHECK IF QTY CHANGED
@@ -786,7 +986,7 @@ namespace Sopra.Services
                 }
 
                 // MAP THE DESCRIPTION
-                var description = $"Order {obj.OrderNo} was updated.";
+                var description = "Order was updated.";
                 if (RegulerQtyChanges.Any())
                 {
                     description += "<br/><br/>Reguler Items:";
@@ -843,33 +1043,46 @@ namespace Sopra.Services
                 var obj = await _context.Orders.FirstOrDefaultAsync(x => x.ID == id && x.IsDeleted == false && x.OrderStatus == "ACTIVE");
                 if (obj == null) return false;
 
-                obj.OrderStatus = "CANCEL";
-                obj.ReasonsID = reason;
-                obj.DateUp = Utility.getCurrentTimestamps();
+                var getUser = await _context.Users.FirstOrDefaultAsync(x => x.RefID == userId);
 
-                await _context.SaveChangesAsync();
-
-                await Utility.AfterSave(_context, "OrderBottle", id, "Delete");
-
-                var logs = new UserLog
+                if (getUser != null)
                 {
-                    ObjectID = id,
-                    ModuleID = 1,
-                    UserID = userId,
-                    Description = $"Order " + obj.OrderNo + " was cancelled.",
-                    TransDate = Utility.getCurrentTimestamps(),
-                    DateIn = Utility.getCurrentTimestamps(),
-                    UserIn = userId,
-                    UserUp = 0,
-                    IsDeleted = false
-                };
+                    obj.OrderStatus = "CANCEL";
+                    obj.ReasonsID = reason;
+                    obj.DateUp = Utility.getCurrentTimestamps();
+                    obj.UserUp = userId;
+                    obj.UsernameCancel = $"{getUser.FirstName} {getUser.LastName}";
 
-                await _context.UserLogs.AddAsync(logs);
-                await _context.SaveChangesAsync();
+                    await _context.SaveChangesAsync();
 
-                await dbTrans.CommitAsync();
+                    await Utility.AfterSave(_context, "OrderBottle", id, "Delete");
 
-                return true;
+                    var logs = new UserLog
+                    {
+                        ObjectID = id,
+                        ModuleID = 1,
+                        UserID = userId,
+                        Description = "Order was cancelled.",
+                        TransDate = Utility.getCurrentTimestamps(),
+                        DateIn = Utility.getCurrentTimestamps(),
+                        UserIn = userId,
+                        UserUp = 0,
+                        IsDeleted = false
+                    };
+
+                    await _context.UserLogs.AddAsync(logs);
+                    await _context.SaveChangesAsync();
+
+                    await dbTrans.CommitAsync();
+
+                    return true;
+                }
+                else
+                {
+                    await dbTrans.CommitAsync();
+                    
+                    return false;
+                }
             }
             catch (Exception ex)
             {

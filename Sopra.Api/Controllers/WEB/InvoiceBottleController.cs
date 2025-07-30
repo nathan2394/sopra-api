@@ -11,13 +11,13 @@ using Microsoft.AspNetCore.Authorization;
 namespace Sopra.Api.Controllers
 {
     [ApiController]
-    [Route("OrderBottle")]
+    [Route("InvoiceBottle")]
     [Authorize]
-    public class OrderBottleController : ControllerBase
+    public class InvoiceBottleController : ControllerBase
     {
-        private readonly OrderBottleInterface _service;
+        private readonly InvoiceBottleInterface _service;
 
-        public OrderBottleController(OrderBottleInterface service)
+        public InvoiceBottleController(InvoiceBottleInterface service)
         {
             _service = service;
         }
@@ -51,7 +51,7 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "OrderBottleController: Get All");
+                Trace.WriteLine(message, "InvoiceBottleController: Get All");
                 return BadRequest(new { message });
             }
         }
@@ -73,17 +73,17 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "OrderBottleController: Get by ID");
+                Trace.WriteLine(message, "InvoiceBottleController: Get by ID");
                 return BadRequest(new { message });
             }
         }
 
-        [HttpGet("CheckStatus")]
-        public async Task<IActionResult> CheckIndukAnak(long customerID, long companyID)
+        [HttpGet("Order/{id}")]
+        public async Task<IActionResult> GetByOrderIdAsync(int id)
         {
             try
             {
-                var result = await _service.CheckIndukAnakAsync(customerID, companyID);
+                var result = await _service.GetByOrderIdAsync(id);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -95,13 +95,13 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "OrderBottleController: Check Induk Anak by Customer ID");
+                Trace.WriteLine(message, "InvoiceBottleController: Get by Order ID");
                 return BadRequest(new { message });
             }
         }
 
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] OrderBottleDto obj)
+        public async Task<IActionResult> Create(InvoiceBottle obj)
         {
             try
             {
@@ -126,7 +126,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpPut]
-        public async Task<IActionResult> Edit([FromBody] OrderBottleDto obj)
+        public async Task<IActionResult> Edit([FromBody] InvoiceBottle obj)
         {
             try
             {
@@ -134,7 +134,7 @@ namespace Sopra.Api.Controllers
                 if (userId == 0) return BadRequest("Invalid Token");
 
                 var result = await _service.EditAsync(obj, userId);
-                var response = new Response<OrderBottleDto>(result);
+                var response = new Response<Invoice>(result);
                 return Ok(response);
             }
             catch (Exception ex)
@@ -173,7 +173,7 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "OrderBottleController: Delete");
+                Trace.WriteLine(message, "InvoiceBottleController: Delete");
                 return BadRequest(new { message });
             }
         }

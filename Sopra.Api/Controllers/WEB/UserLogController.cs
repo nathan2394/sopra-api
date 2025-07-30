@@ -21,11 +21,11 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Get(long objectId = 0, long moduleId = 0)
+        public async Task<IActionResult> Get()
         {
             try
             {
-                var result = await _service.GetAllAsync(objectId, moduleId);
+                var result = await _service.GetAllAsync();
                 return Ok(result);
             }
             catch (Exception ex)
@@ -38,6 +38,28 @@ namespace Sopra.Api.Controllers
                     inner = inner.InnerException;
                 }
                 Trace.WriteLine(message, "UserLogController: Get All");
+                return BadRequest(new { message });
+            }
+        }
+
+        [HttpGet("Order")]
+        public async Task<IActionResult> GetByOrderIdAsync(long objectId = 0, long moduleId = 0)
+        {
+            try
+            {
+                var result = await _service.GetByOrderIdAsync(objectId, moduleId);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "UserLogController: Get By OrderId");
                 return BadRequest(new { message });
             }
         }

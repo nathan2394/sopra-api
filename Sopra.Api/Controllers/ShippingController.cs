@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
 
 using System;
 using System.Diagnostics;
@@ -16,9 +15,9 @@ namespace Sopra.Api.Controllers
     [Route("[controller]")]
     public class ShippingController : ControllerBase
     {
-        private readonly IServiceAsync<Shipping> _service;
+        private readonly ShippingInterface _service;
 
-        public ShippingController(IServiceAsync<Shipping> service)
+        public ShippingController(ShippingInterface service)
         {
             _service = service;
         }
@@ -47,15 +46,15 @@ namespace Sopra.Api.Controllers
             }
         }
 
-        private IActionResult BadRequest(object value)
-        {
-            throw new NotImplementedException();
-        }
+        // private IActionResult BadRequest(object value)
+        // {
+        //     throw new NotImplementedException();
+        // }
 
-        private IActionResult Ok(ListResponse<Shipping> result)
-        {
-            throw new NotImplementedException();
-        }
+        // private IActionResult Ok(ListResponse<Shipping> result)
+        // {
+        //     throw new NotImplementedException();
+        // }
 
         //[Authorize]
         [HttpGet("{id}")]
@@ -165,11 +164,6 @@ namespace Sopra.Api.Controllers
                 Trace.WriteLine(message, "ShippingController");
                 return BadRequest(new { message });
             }
-        }
-
-        private IActionResult Ok(Response<object> response)
-        {
-            throw new NotImplementedException();
         }
     }
 }

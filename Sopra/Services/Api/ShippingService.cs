@@ -14,7 +14,18 @@ using System.Collections.Generic;
 
 namespace Sopra.Services
 {
-    public class ShippingService : IServiceAsync<Shipping>
+    public interface ShippingInterface
+    {
+        Task<ListResponse<ShippingDto>> GetAllAsync(int limit, int page, int total, string search, string sort,
+        string filter, string date);
+        //Task<ListResponse<Order>> GetAllAsync(int limit, int page, int total, string search, string sort,
+        //string filter, string date);
+        Task<Shipping> GetByIdAsync(long id);
+        Task<Shipping> CreateAsync(Shipping data);
+        Task<Shipping> EditAsync(Shipping data);
+        Task<bool> DeleteAsync(long id, long UserID);
+    }
+    public class ShippingService : ShippingInterface
     {
         private readonly EFContext _context;
 
@@ -121,13 +132,30 @@ namespace Sopra.Services
             }
         }
 
-
-        public async Task<ListResponse<Shipping>> GetAllAsync(int limit, int page, int total, string search, string sort, string filter, string date)
+        public async Task<ListResponse<ShippingDto>> GetAllAsync(int limit, int page, int total, string search, string sort, string filter, string date)
         {
             try
             {
                 _context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
-                var query = from a in _context.Shippings where a.IsDeleted == false select a;
+                var query = from a in _context.Shippings
+                    join od in _context.OrderDetails on new { OrdersID = a.OrderID, ObjectID = a.ProductID } equals new { od.OrdersID, od.ObjectID }
+                    join b in _context.ProductDetails2 on a.ProductID equals b.RefID
+                    where a.IsDeleted == false && 
+                        (od.ObjectType == b.Type || 
+                        (od.ObjectType == "closures" && b.Type == "closure") ||
+                        (od.ObjectType == "closure" && b.Type == "closures"))
+                    select new ShippingDto
+                    {
+                        ID = a.ID,
+                        RefID = a.RefID,
+                        OrderID = a.OrderID,
+                        ProductName = b.Name,
+                        ProductID = a.ProductID,
+                        SpkNo = a.SpkNo,
+                        Qty = a.Qty,
+                        DateIn = a.DateIn,
+                        ProductType = od.ObjectType
+                    };
 
                 // Searching
                 if (!string.IsNullOrEmpty(search))
@@ -215,7 +243,7 @@ namespace Sopra.Services
                     return await GetAllAsync(limit, page, total, search, sort, filter, date);
                 }
 
-                return new ListResponse<Shipping>(data, total, page);
+                return new ListResponse<ShippingDto>(data, total, page);
             }
             catch (Exception ex)
             {
@@ -243,31 +271,31 @@ namespace Sopra.Services
             }
         }
 
-        public Task<Shipping> ChangePassword(ChangePassword obj, long id) { return null; }
+        // public Task<Shipping> ChangePassword(ChangePassword obj, long id) { return null; }
 
-        public Task<List<VTransactionOrderDetail>> GetTransactionOrderDetailAsync(long orderid)
-        {
-            throw new NotImplementedException();
-        }
+        // public Task<List<VTransactionOrderDetail>> GetTransactionOrderDetailAsync(long orderid)
+        // {
+        //     throw new NotImplementedException();
+        // }
 
-        public Task<Shipping> GetAccIdAsync(long id)
-        {
-            throw new NotImplementedException();
-        }
+        // public Task<Shipping> GetAccIdAsync(long id)
+        // {
+        //     throw new NotImplementedException();
+        // }
 
-        public Task<Shipping> GetAccIdAsync(long id, long customerid)
-        {
-            throw new NotImplementedException();
-        }
+        // public Task<Shipping> GetAccIdAsync(long id, long customerid)
+        // {
+        //     throw new NotImplementedException();
+        // }
 
-        public Task<List<T>> GetAccIdAsync<T>(long id, long customerId) where T : class
-        {
-            throw new NotImplementedException();
-        }
+        // public Task<List<T>> GetAccIdAsync<T>(long id, long customerId) where T : class
+        // {
+        //     throw new NotImplementedException();
+        // }
 
-        Task<List<T>> IServiceAsync<Shipping>.GetAccIdAsync<T>(long id, long customerId, long masterId, string objectType, long objectId)
-        {
-            throw new NotImplementedException();
-        }
+        // Task<List<T>> IServiceAsync<Shipping>.GetAccIdAsync<T>(long id, long customerId, long masterId, string objectType, long objectId)
+        // {
+        //     throw new NotImplementedException();
+        // }
     }
 }

@@ -147,7 +147,10 @@ namespace Sopra.Services
             try
             {
                 _context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
-                var query = from a in _context.Customers where a.IsDeleted == false select a;
+                var query = from a in _context.Customers
+                            join b in _context.Users on a.RefID equals b.CustomersID
+                            where a.IsDeleted == false
+                            select a; 
 
                 // // Searching
                 // if (!string.IsNullOrEmpty(search))
