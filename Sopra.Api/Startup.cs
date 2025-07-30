@@ -19,6 +19,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using System.Linq.Expressions;
+using Sopra.Api.Controllers;
 
 namespace Sopra.Api
 {
@@ -49,20 +51,27 @@ namespace Sopra.Api
             //add memory Caching
             services.AddMemoryCache();
 
-            //GCP Config
-            // string jsonAuthFilePath = Configuration["GCPStorageAuthFile"];
-            // GoogleCredential credential = GoogleCredential.FromFile(jsonAuthFilePath);
+            try
+            {
+                //GCP Config
+                string jsonAuthFilePath = Configuration["GCPStorageAuthFile"];
+                GoogleCredential credential = GoogleCredential.FromFile(jsonAuthFilePath);
 
-            //Google Cloud API Config
-            //string jsonAuthFilePathGoogleCloudAPI = Configuration["GoogleApplicationCredential"];
-            //GoogleCredential credentialGoogleCloudAPI = GoogleCredential.FromFile(jsonAuthFilePathGoogleCloudAPI);
+                // Google Cloud API Config
+                string jsonAuthFilePathGoogleCloudAPI = Configuration["GoogleApplicationCredential"];
+                GoogleCredential credentialGoogleCloudAPI = GoogleCredential.FromFile(jsonAuthFilePathGoogleCloudAPI);
 
-            // Explicitly specify the credentials when creating StorageClient
-            // var storageClient = StorageClient.Create(credential);
-            // services.AddSingleton<StorageClient>(storageClient);
+                // Explicitly specify the credentials when creating StorageClient
+                var storageClient = StorageClient.Create(credential);
+                services.AddSingleton<StorageClient>(storageClient);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Credential error: {ex.Message}");
+            }
 
             //Authhentication / Authorization
-            JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+                JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
             var jwtKey = Configuration.GetSection("AppSettings:Secret").Value;
             if (jwtKey != null)
             {
@@ -205,6 +214,12 @@ namespace Sopra.Api
             services.AddScoped<SnapBcaService>();
             services.AddScoped<OrderInterface, OrderService>();
             services.AddScoped<OrderBottleInterface, OrderBottleService>();
+            services.AddScoped<InvoiceBottleService>();
+            services.AddScoped<InvoiceBottleInterface, InvoiceBottleService>();
+            services.AddScoped<PaymentBottleService>();
+            services.AddScoped<PaymentBottleInterface, PaymentBottleService>();
+            services.AddScoped<ShippingInterface, ShippingService>();
+            services.AddScoped<UserLogInterface, UserLogService>();
             services.AddScoped<PromosInterface, PromosService>();
             services.AddScoped<AgentAiInterface, AgentAiService>();
             services.AddScoped<IServiceAsync<OrderDetail>, OrderDetailService>();

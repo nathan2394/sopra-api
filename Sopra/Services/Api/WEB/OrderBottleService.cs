@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 using Sopra.Helpers;
@@ -12,8 +11,8 @@ using Sopra.Responses;
 using Sopra.Entities;
 using System.Data;
 using Newtonsoft.Json;
-using Microsoft.Extensions.Configuration;
-using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using System.Configuration;
+using Google.Protobuf.WellKnownTypes;
 
 namespace Sopra.Services
 {
@@ -22,47 +21,108 @@ namespace Sopra.Services
         Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
         string filter, string date);
         Task<OrderBottleDto> GetByIdAsync(long id);
-        Task<OrderBottleDto> CreateAsync(OrderBottleDto data);
-        Task<OrderBottleDto> EditAsync(OrderBottleDto data);
-        Task<bool> DeleteAsync(long id, int reason);
+        Task<object> CheckIndukAnakAsync(long customerID, long companyID);
+        Task<Order> CreateAsync(OrderBottleDto data, int userId);
+        Task<OrderBottleDto> EditAsync(OrderBottleDto data, int userId);
+        Task<bool> DeleteAsync(long id, int reason, int userId);
     }
 
     public class OrderBottleService : OrderBottleInterface
     {
         private readonly EFContext _context;
         private readonly IOrderBottleRepository _orderBottleRepository;
+        private readonly InvoiceBottleService _invoiceService;
 
         public OrderBottleService(IOrderBottleRepository orderBottleRepository)
         {
             _orderBottleRepository = orderBottleRepository;
         }
-        
-        public OrderBottleService(EFContext context)
+        public OrderBottleService(EFContext context, InvoiceBottleService invoiceService)
         {
             _context = context;
+            _invoiceService = invoiceService;
         }
 
-        private async Task<string> generateVoucherNo()
+        private void ValidateSave(OrderBottleDto data)
         {
-            // Get the current year (YY)
-            var currentYear = DateTime.Now.ToString("yy");
-
-            // Fetch the last voucher number for the current year
-            // var lastVoucher = await _orderBottleRepository.GetLastOrderIdAsync();
-            var lastVoucher = await _context.Orders
-                .OrderByDescending(x => x.ID)
-                .Select(x => x.ID)
-                .FirstOrDefaultAsync();
-
-            // Determine the next voucher number
-            long nextNumber = 1; // Default to 1 if no vouchers exist for the year
-            if (lastVoucher != 0)
+            // STATUS
+            if (data.OrderStatus == "CANCEL")
             {
-                nextNumber = lastVoucher + 1;
+                throw new ArgumentException("Can't take any action, Order is already cancelled.");
             }
 
-            var newVoucherNo = $"SOPRA/SC/N/{currentYear}/{nextNumber:D5}";
-            return Convert.ToString(newVoucherNo);
+            // CUSTOMER
+            if (data.CustomerId <= 0)
+            {
+                throw new ArgumentException("Customer must not be empty.");
+            }
+
+            // REGULER ITEMS
+            if (data.RegulerItems != null && data.RegulerItems.Any())
+            {
+                for (int i = 0; i < data.RegulerItems.Count; i++)
+                {
+                    var item = data.RegulerItems[i];
+                    if (item.ProductsId > 0 && (item.Amount == null || item.Amount <= 0))
+                    {
+                        throw new ArgumentException($"Reguler Item's amount, price, and quantity must not be empty: Item no. {i + 1}.");
+                    }
+                }
+            }
+
+            // MIX ITEMS
+            if (data.MixItems != null && data.MixItems.Any())
+            {
+                for (int i = 0; i < data.MixItems.Count; i++)
+                {
+                    var item = data.MixItems[i];
+                    if (item.ProductsId > 0 && (item.Amount == null || item.Amount <= 0))
+                    {
+                        throw new ArgumentException($"Mix Item's amount, price, and quantity must not be empty: Set no. {i + 1}.");
+                    }
+                }
+            }
+
+            // INVOICE ITEMS
+            if (data.InvoiceItems != null && data.InvoiceItems.Any())
+            {
+                decimal totalInvoiceAmount = 0;
+                decimal totalOrderAmount = data.Netto;
+
+                foreach (var item in data.InvoiceItems)
+                {
+                    if (item.Netto <= 0)
+                    {
+                        throw new ArgumentException($"Invoice amount must be greater than 0.");
+                    }
+
+                    totalInvoiceAmount += item.Netto ?? 0;
+                }
+                
+                if (totalInvoiceAmount != totalOrderAmount)
+                {
+                    throw new ArgumentException($"Invoice amount should be equal to order amount.");
+                }
+            }
+        }
+
+        private async Task<string> GenerateVoucherNo(long companyId)
+        {
+            var currentYear = DateTime.Now.Year;
+            var currentYearString = DateTime.Now.ToString("yy");
+            var company = companyId == 1 ? "SOPRA" : "TRASS";
+
+            // Get the last ID from the appropriate table for the current year
+            var lastId = await _context.Orders
+                    .Where(x => x.TransDate.HasValue && x.TransDate.Value.Year == currentYear)
+                    .OrderByDescending(x => x.ID)
+                    .Select(x => x.ID)
+                    .FirstOrDefaultAsync();
+
+            var nextNumber = lastId + 1;
+            var docType = "SC";
+
+            return $"{company}/{docType}/N/{currentYearString}/{nextNumber:D5}";
         }
 
         public async Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort, string filter, string date)
@@ -110,6 +170,7 @@ namespace Sopra.Services
                                 "orderstatus" => query.Where(x => x.Order.OrderStatus.Contains(value)),
                                 "customersid" => query.Where(x => x.Order.CustomersID.ToString().Equals(value)),
                                 "referenceno" => query.Where(x => x.Order.ReferenceNo.Contains(value)),
+                                "companyid" => query.Where(x => x.Order.CompaniesID.ToString().Equals(value)),
                                 _ => query
                             };
                         }
@@ -210,7 +271,9 @@ namespace Sopra.Services
                         HandleBy = x.Order.Username,
                         Status = x.Order.OrderStatus,
                     };
-                }).ToList();
+                })
+                .Distinct()
+                .ToList();
 
                 return new ListResponse<dynamic>(resData, total, page);
             }
@@ -236,7 +299,7 @@ namespace Sopra.Services
                 var allRegulerItems = await _context.OrderDetails
                     .Where(x => x.OrdersID == data.ID && x.Type == "Reguler")
                     .ToListAsync();
-                    
+
                 var allMixItems = await _context.OrderDetails
                     .Where(x => x.OrdersID == data.ID && x.Type == "Mix")
                     .ToListAsync();
@@ -374,21 +437,68 @@ namespace Sopra.Services
             }
         }
 
-        public async Task<OrderBottleDto> CreateAsync(OrderBottleDto data)
+        public async Task<object> CheckIndukAnakAsync(long customerID, long companyID)
+        {
+            try
+            {
+                var obj = await _context.Orders.FirstOrDefaultAsync
+                (
+                    x => x.CustomersID == customerID &&
+                    x.IsDeleted == false &&
+                    x.OrderStatus == "ACTIVE" &&
+                    x.Status == "INDUK" &&
+                    x.TransDate >= DateTime.UtcNow.AddDays(-30) &&
+                    x.CompaniesID == companyID
+                );
+
+                if (obj == null)
+                {
+                    return new
+                    {
+                        data = new
+                        {
+                            Status = false,
+                            Disc1 = 0
+                        }
+                    };
+                }
+
+                return new
+                {
+                    data = new
+                    {
+                        Status = true,
+                        Disc1 = obj.Disc1
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                throw;
+            }
+        }
+
+        public async Task<Order> CreateAsync(OrderBottleDto data, int userId)
         {
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
             try
             {
                 Trace.WriteLine($"payload order from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                ValidateSave(data);
 
-                var newVoucherNo = await generateVoucherNo();
-                data.VoucherNo = Convert.ToString(newVoucherNo);
+                var newOrderNo = await GenerateVoucherNo(data.CompanyId);
+                data.VoucherNo = Convert.ToString(newOrderNo);
 
+                var logItems = new List<UserLog>();
                 var order = new Order
                 {
                     OrderNo = data.VoucherNo,
                     RefID = data.RefID,
-                    TransDate = data.TransDate,
+                    TransDate = Utility.getCurrentTimestamps(),
                     ReferenceNo = data.ReferenceNo,
                     CustomersID = data.CustomerId,
                     CompaniesID = data.CompanyId,
@@ -414,6 +524,22 @@ namespace Sopra.Services
                 await _context.Orders.AddAsync(order);
                 await _context.SaveChangesAsync();
 
+                var orderLogs = new UserLog
+                {
+                    ObjectID = order.ID,
+                    ModuleID = 1,
+                    UserID = userId,
+                    Description = "Order was created.",
+                    TransDate = Utility.getCurrentTimestamps(),
+                    DateIn = Utility.getCurrentTimestamps(),
+                    UserIn = userId,
+                    UserUp = 0,
+                    IsDeleted = false
+                };
+
+                logItems.Add(orderLogs); 
+
+                // INSERT REGULER
                 var allOrderDetails = new List<OrderDetail>();
                 foreach (var item in data.RegulerItems)
                 {
@@ -451,9 +577,9 @@ namespace Sopra.Services
                     }
                 }
 
-                // INSERT REGULER
                 await _context.OrderDetails.AddRangeAsync(allOrderDetails);
 
+                // INSERT MIX
                 foreach (var item in data.MixItems)
                 {
                     var mixDetail = new OrderDetail
@@ -505,13 +631,40 @@ namespace Sopra.Services
                     }
                 }
 
+                // INSERT INVOICES
+                foreach (var item in data.InvoiceItems)
+                {
+                    var refinedItem = new InvoiceBottle
+                    {
+                        RefID = item.RefID,
+                        OrdersID = order.ID,
+                        CustomersID = data.CustomerId,
+                        CompanyID = data.CompanyId,
+                        CreatedBy = data.CreatedBy,
+                        PaymentMethod = item.PaymentMethod,
+                        Refund = item.Refund,
+                        Bill = item.Bill,
+                        Netto = item.Netto,
+                        Type = item.Type,
+                        Status = item.Status,
+                        DueDate = item.DueDate,
+                        FlagInv = item.FlagInv
+                    };
+
+                    var invoice = await _invoiceService.CreateInvoiceAsync(refinedItem, userId);
+                }
+
                 await Utility.AfterSave(_context, "OrderBottle", data.ID, "Add");
                 await _context.SaveChangesAsync();
 
                 Trace.WriteLine($"payload order after save data into database = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+
+                await _context.UserLogs.AddRangeAsync(logItems);
+                await _context.SaveChangesAsync();
+
                 await dbTrans.CommitAsync();
 
-                return data;
+                return order;
             }
             catch (Exception ex)
             {
@@ -520,28 +673,29 @@ namespace Sopra.Services
                     Trace.WriteLine(ex.StackTrace);
 
                 Trace.WriteLine($"error save data order, payload = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+
                 await dbTrans.RollbackAsync();
                 Trace.WriteLine($"rollback db");
                 throw;
             }
         }
 
-        public async Task<OrderBottleDto> EditAsync(OrderBottleDto data)
+        public async Task<OrderBottleDto> EditAsync(OrderBottleDto data, int userId)
         {
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
             try
             {
                 Trace.WriteLine($"payload order from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                ValidateSave(data);
 
                 var obj = null as Order;
-                
+
                 obj = await _context.Orders.FirstOrDefaultAsync(x => x.ID == data.ID && x.IsDeleted == false);
                 if (obj == null) return null;
 
                 obj.CustomersID = data.CustomerId;
                 obj.ReferenceNo = data.ReferenceNo;
-                // obj.Other = data.Other;
-                obj.Amount = data.Dpp;
+                obj.Amount = data.Amount;
                 obj.Status = data.DiscStatus;
                 obj.VouchersID = data.VouchersID;
                 obj.Disc1 = data.DiscPercentage;
@@ -553,70 +707,31 @@ namespace Sopra.Services
                 obj.TAX = data.Tax;
                 obj.TaxValue = data.TaxValue;
                 obj.Total = data.Netto;
-                // obj.Departure = data.Departure;
-                // obj.Arrival = data.Arrival;
-                // obj.WarehouseID = data.WarehouseID;
-                // obj.CountriesID = data.CountriesID;
-                // obj.ProvincesID = data.ProvincesID;
-                // obj.RegenciesID = data.RegenciesID;
-                // obj.DistrictsID = data.DistrictsID;
-                // obj.Address = data.Address;
-                // obj.PostalCode = data.PostalCode;
-                // obj.TransportsID = data.TransportsID;
-                // obj.TotalTransport = data.TotalTransport;
-                // obj.TotalTransportCapacity = data.TotalTransportCapacity;
-                // obj.TotalOrderCapacity = data.TotalOrderCapacity;
-                // obj.TotalOrderWeight = data.TotalOrderWeight;
-                // obj.TotalTransportCost = data.TotalTransportCost;
-                // obj.RemainingCapacity = data.RemainingCapacity;
-                // obj.ReasonsID = data.ReasonsID;
-                // obj.ExpeditionsID = data.ExpeditionsID;
-                // obj.BiayaPickup = data.BiayaPickup;
-                // obj.CheckInvoice = data.CheckInvoice;
-                // obj.InvoicedDate = data.InvoicedDate;
                 obj.TotalReguler = data.TotalReguler;
-                // obj.TotalJumbo = data.TotalJumbo;
                 obj.TotalMix = data.TotalMix;
-                // obj.TotalNewPromo = data.TotalNewPromo;
-                // obj.TotalSupersale = data.TotalSupersale;
-                // obj.ValidTime = data.ValidTime;
-                // obj.DealerTier = data.DealerTier;
-                // obj.DeliveryStatus = data.DeliveryStatus;
-                // obj.PartialDeliveryStatus = data.PartialDeliveryStatus;
-                // obj.PaymentTerm = data.PaymentTerm;
-                // obj.Validity = data.Validity;
-                // obj.IsVirtual = data.IsVirtual;
-                // obj.VirtualAccount = data.VirtualAccount;
-                // obj.BanksID = data.BanksID;
-                // obj.ShipmentNum = data.ShipmentNum;
-                // obj.PaidDate = data.PaidDate;
-                // obj.RecreateOrderStatus = data.RecreateOrderStatus;
-                // obj.CompaniesID = data.CompaniesID;
-                // obj.AmountTotal = data.AmountTotal;
-                // obj.FutureDateStatus = data.FutureDateStatus;
-                // obj.ChangeExpeditionStatus = data.ChangeExpeditionStatus;
-                // obj.ChangetruckStatus = data.ChangetruckStatus;
-                // obj.SubscriptionCount = data.SubscriptionCount;
-                // obj.SubscriptionStatus = data.SubscriptionStatus;
-                // obj.SubscriptionDate = data.SubscriptionDate;
-                // obj.Username = data.Username;
-                // obj.UsernameCancel = data.UsernameCancel;
-                // obj.SessionID = data.SessionID;
-                // obj.SessionDate = data.SessionDate;
-                // obj.Type = data.Type;
-                // obj.PaymentStatus = data.PaymentStatus;
-                // obj.Label = data.Label;
-                // obj.Landmark = data.Landmark;
-                // obj.IsExpress = data.IsExpress;
-                // obj.UserIn = userId;
 
-                // obj.UserUp = data.UserUp;
-
+                obj.UserUp = userId;
                 obj.DateUp = Utility.getCurrentTimestamps();
 
+                // STORE EXISTING REGULER FOR COMPARISON
+                var existingRegulerDetails = await _context.OrderDetails
+                .Where(d => d.OrdersID == obj.ID && d.Type == "Reguler" && d.ObjectType == "bottle")
+                .Join(_context.ProductDetails2,
+                    od => od.ObjectID,
+                    p => p.RefID,
+                    (od, p) => new
+                    {
+                        ProductsId = od.ObjectID,
+                        ProductName = p.Name,
+                        Qty = od.Qty
+                    })
+                .ToListAsync();
+
+                // REMOVE EXISTING DETAILS (REGULER, MIX)
                 var existingReguler = _context.OrderDetails.Where(d => d.OrdersID == obj.ID);
                 _context.OrderDetails.RemoveRange(existingReguler);
 
+                // MAP REGULER PAYLOAD
                 var allOrderDetails = new List<OrderDetail>();
                 foreach (var item in data.RegulerItems)
                 {
@@ -657,6 +772,7 @@ namespace Sopra.Services
                 // INSERT REGULER
                 await _context.OrderDetails.AddRangeAsync(allOrderDetails);
 
+                // MAP MIX PRODUCT PAYLOAD
                 foreach (var item in data.MixItems)
                 {
                     var mixDetail = new OrderDetail
@@ -675,12 +791,14 @@ namespace Sopra.Services
                         ApprovalStatus = item.ApprovalStatus
                     };
 
+                    // INSERT MIX PRODUCT
                     _context.OrderDetails.Add(mixDetail);
                     await _context.SaveChangesAsync();
 
                     mixDetail.ParentID = mixDetail.ID;
                     await _context.SaveChangesAsync();
 
+                    // MAP MIX CLOSURE PAYLOAD
                     var closureDetails = new List<OrderDetail>();
                     foreach (var closure in item.ClosureItems)
                     {
@@ -703,8 +821,121 @@ namespace Sopra.Services
 
                     if (closureDetails.Any())
                     {
+                        // INSERT MIX CLOSURE
                         await _context.OrderDetails.AddRangeAsync(closureDetails);
                         await _context.SaveChangesAsync();
+                    }
+                }
+
+                // STORE EXISTING INVOICES FOR COMPARISON
+                var existingInvoices = await _context.Invoices
+                .Where(i => i.OrdersID == obj.ID)
+                .ToListAsync();
+
+                // INSERT/UPDATE INVOICES
+                foreach (var item in data.InvoiceItems)
+                {
+                    if (item.ID != 0)
+                    {
+                        // UPDATE EXISTING INVOICE
+                        var existingInvoice = existingInvoices.FirstOrDefault(x => x.ID == item.ID);
+
+                        // Track changes for logging
+                        var invoiceChanges = new List<string>();
+
+                        if (existingInvoice.Netto != item.Netto)
+                        {
+                            invoiceChanges.Add($"Netto changed from {existingInvoice.Netto:N2} to {item.Netto:N2}");
+                            existingInvoice.Netto = item.Netto;
+                        }
+
+                        if (existingInvoice.DueDate != item.DueDate)
+                        {
+                            invoiceChanges.Add($"Due date changed from {existingInvoice.DueDate:dd/MM/yyyy} to {item.DueDate:dd/MM/yyyy}");
+                            existingInvoice.DueDate = item.DueDate;
+                        }
+
+                        if (existingInvoice.PaymentMethod != item.PaymentMethod)
+                        {
+                            invoiceChanges.Add($"Payment method changed from {existingInvoice.PaymentMethod} to {item.PaymentMethod}");
+                            existingInvoice.PaymentMethod = item.PaymentMethod;
+                        }
+
+                        // Update other fields that might have changed
+                        if (existingInvoice.Refund != item.Refund)
+                        {
+                            invoiceChanges.Add($"Refund changed from {existingInvoice.Refund} to {item.Refund}");
+                            existingInvoice.Refund = item.Refund;
+                        }
+
+                        if (existingInvoice.Bill != item.Bill)
+                        {
+                            invoiceChanges.Add($"Bill changed from {existingInvoice.Bill} to {item.Bill}");
+                            existingInvoice.Bill = item.Bill;
+                        }
+
+                        if (existingInvoice.FlagInv != item.FlagInv)
+                        {
+                            invoiceChanges.Add($"Flag changed from {existingInvoice.FlagInv} to {item.FlagInv}");
+                            existingInvoice.FlagInv = item.FlagInv;
+                        }
+
+                        existingInvoice.UserUp = userId;
+                        existingInvoice.DateUp = Utility.getCurrentTimestamps();
+
+                        _context.Invoices.Update(existingInvoice);
+                        await _context.SaveChangesAsync();
+
+                        if (invoiceChanges.Any())
+                        {
+                            var invoiceDescription = "Invoice was updated.";
+                            invoiceDescription += $"<br/><br/>{existingInvoice.InvoiceNo}:";
+
+                            invoiceDescription += "<br/><ul>";
+                            foreach (var change in invoiceChanges)
+                            {
+                                invoiceDescription += $"<li>{change}</li>";
+                            }
+
+                            invoiceDescription += "</ul>";
+
+                            var invoiceLog = new UserLog
+                            {
+                                ObjectID = existingInvoice.ID,
+                                ModuleID = 2, // Invoice module
+                                UserID = userId,
+                                Description = invoiceDescription,
+                                TransDate = Utility.getCurrentTimestamps(),
+                                DateIn = Utility.getCurrentTimestamps(),
+                                UserIn = userId,
+                                UserUp = 0,
+                                IsDeleted = false
+                            };
+
+                            await _context.UserLogs.AddAsync(invoiceLog);
+                            await _context.SaveChangesAsync();
+                        }
+                    }
+                    else
+                    {
+                        var refinedItem = new InvoiceBottle
+                        {
+                            RefID = item.RefID,
+                            OrdersID = obj.ID,
+                            CustomersID = data.CustomerId,
+                            CompanyID = data.CompanyId,
+                            CreatedBy = data.CreatedBy,
+                            PaymentMethod = item.PaymentMethod,
+                            Refund = item.Refund,
+                            Bill = item.Bill,
+                            Netto = item.Netto,
+                            Type = item.Type,
+                            Status = item.Status,
+                            DueDate = item.DueDate,
+                            FlagInv = item.FlagInv
+                        };
+
+                        var invoice = await _invoiceService.CreateInvoiceAsync(refinedItem, userId);
                     }
                 }
 
@@ -712,6 +943,79 @@ namespace Sopra.Services
                 await _context.SaveChangesAsync();
 
                 Trace.WriteLine($"payload order after save data into database = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+
+                // COMPARE CHANGES (QTY)
+                var RegulerQtyChanges = new List<string>();
+                
+                foreach (var newItem in data.RegulerItems)
+                {
+                    var existingItem = existingRegulerDetails.FirstOrDefault(x => x.ProductsId == newItem.ProductsId);
+
+                    if (existingItem != null)
+                    {
+                        // ITEM EXIST, CHECK IF QTY CHANGED
+                        if (existingItem.Qty != newItem.Qty)
+                        {
+                            RegulerQtyChanges.Add($"{existingItem.ProductName} qty's changed from {existingItem.Qty:N0} to {newItem.Qty:N0}.");
+                        }
+                    }
+                    else
+                    {
+                        // NEW ITEM ADDED
+                        var productName = await _context.ProductDetails2
+                            .Where(p => p.RefID == newItem.ProductsId)
+                            .Select(p => p.Name)
+                            .FirstOrDefaultAsync();
+                        
+                        if (!string.IsNullOrEmpty(productName))
+                        {
+                            RegulerQtyChanges.Add($"{productName} was added with qty {newItem.Qty:N0}.");
+                        }
+                    }
+                }
+
+                // CHECK FOR REMOVED ITEMS
+                foreach (var existingItem in existingRegulerDetails)
+                {
+                    var newItem = data.RegulerItems.FirstOrDefault(x => x.ProductsId == existingItem.ProductsId);
+                    if (newItem == null)
+                    {
+                        // ITEM WAS REMOVED
+                        RegulerQtyChanges.Add($"{existingItem.ProductName} was removed.");
+                    }
+                }
+
+                // MAP THE DESCRIPTION
+                var description = "Order was updated.";
+                if (RegulerQtyChanges.Any())
+                {
+                    description += "<br/><br/>Reguler Items:";
+
+                    description += "<br/><ul>";
+                    foreach (var change in RegulerQtyChanges)
+                    {
+                        description += $"<li>{change}</li>";
+                    }
+
+                    description += "</ul>";
+                }
+
+                var logs = new UserLog
+                {
+                    ObjectID = obj.ID,
+                    ModuleID = 1,
+                    UserID = userId,
+                    Description = description,
+                    TransDate = Utility.getCurrentTimestamps(),
+                    DateIn = Utility.getCurrentTimestamps(),
+                    UserIn = userId,
+                    UserUp = 0,
+                    IsDeleted = false
+                };
+
+                await _context.UserLogs.AddAsync(logs);
+                await _context.SaveChangesAsync();
+
                 await dbTrans.CommitAsync();
 
                 return data;
@@ -730,7 +1034,7 @@ namespace Sopra.Services
             }
         }
 
-        public async Task<bool> DeleteAsync(long id, int reason)
+        public async Task<bool> DeleteAsync(long id, int reason, int userId)
         {
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
 
@@ -739,16 +1043,46 @@ namespace Sopra.Services
                 var obj = await _context.Orders.FirstOrDefaultAsync(x => x.ID == id && x.IsDeleted == false && x.OrderStatus == "ACTIVE");
                 if (obj == null) return false;
 
-                obj.OrderStatus = "CANCEL";
-                obj.ReasonsID = reason;
-                obj.DateUp = DateTime.Now;
+                var getUser = await _context.Users.FirstOrDefaultAsync(x => x.RefID == userId);
 
-                await _context.SaveChangesAsync();
+                if (getUser != null)
+                {
+                    obj.OrderStatus = "CANCEL";
+                    obj.ReasonsID = reason;
+                    obj.DateUp = Utility.getCurrentTimestamps();
+                    obj.UserUp = userId;
+                    obj.UsernameCancel = $"{getUser.FirstName} {getUser.LastName}";
 
-                await Utility.AfterSave(_context, "OrderBottle", id, "Delete");
-                await dbTrans.CommitAsync();
+                    await _context.SaveChangesAsync();
 
-                return true;
+                    await Utility.AfterSave(_context, "OrderBottle", id, "Delete");
+
+                    var logs = new UserLog
+                    {
+                        ObjectID = id,
+                        ModuleID = 1,
+                        UserID = userId,
+                        Description = "Order was cancelled.",
+                        TransDate = Utility.getCurrentTimestamps(),
+                        DateIn = Utility.getCurrentTimestamps(),
+                        UserIn = userId,
+                        UserUp = 0,
+                        IsDeleted = false
+                    };
+
+                    await _context.UserLogs.AddAsync(logs);
+                    await _context.SaveChangesAsync();
+
+                    await dbTrans.CommitAsync();
+
+                    return true;
+                }
+                else
+                {
+                    await dbTrans.CommitAsync();
+                    
+                    return false;
+                }
             }
             catch (Exception ex)
             {

@@ -92,10 +92,12 @@ namespace Sopra.Api.Controllers
                                 similarProd.Image == closedProd.Image))
                             .ToList();
                     }
-                    var closedProducts = rawClosedProducts
-                                        .GroupBy(x => x.Name.Split(" ")[0])
-                                        .Select(x => x.First())
-                                        .ToList();
+                    var closedProducts = rawClosedProducts?
+                        .Where(x => !string.IsNullOrEmpty(x.Name))
+                        .GroupBy(x => x.Name.Split(" ")[0])
+                        .Select(x => x.First())
+                        .ToList() ?? new List<ProductDetail2>();
+                        
                     return Ok(new { imageObject.MediaLink, similarProducts, closedProducts });
                 }
                 return Ok(new { imageObject.MediaLink, extractedText });

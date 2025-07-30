@@ -78,6 +78,7 @@ namespace Sopra.Helpers
         public DbSet<Gcp> Gcps { get; set; }
         public DbSet<Discount> Discounts { get; set; }
         public DbSet<Order> Orders { get; set; }
+        public DbSet<UserLog> UserLogs { get; set; }
         public DbSet<OrderDetail> OrderDetails { get; set; }
         public DbSet<Invoice> Invoices { get; set; }
         public DbSet<Payment> Payments { get; set; }

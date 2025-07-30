@@ -32,6 +32,7 @@ namespace Sopra.Entities
         public decimal? Sfee { get; set; }
         public List<RegulerItem> RegulerItems { get; set; }
         public List<MixItem> MixItems { get; set; }
+        public List<InvoiceItem> InvoiceItems { get; set; }
     }
     public class ClosureItem
     {
@@ -74,5 +75,28 @@ namespace Sopra.Entities
         public decimal? Amount { get; set; }
         public string Notes { get; set; }
         public List<ClosureItem> ClosureItems { get; set; }
+    }
+
+    public class InvoiceItem
+    {
+        public long ID { get; set; }
+        public long? RefID { get; set; }
+        public long OrdersID { get; set; }
+        public long? PaymentMethod { get; set; }
+        public string? InvoiceNo { get; set; }
+        public string? Type { get; set; }
+        public string? Status { get; set; }
+        public decimal? Netto { get; set; }
+        public long? CustomersID { get; set; }
+        public DateTime? TransDate { get; set; }
+        public DateTime? DueDate { get; set; }
+        public string? VANum { get; set; }
+        public string? CustNum { get; set; }
+        public decimal? Refund { get; set; }
+        public decimal? Bill { get; set; }
+        public long? CompaniesID { get; set; }
+        public long? SentWaCounter { get; set; }
+        public DateTime? WASentTime { get; set; }
+        public long? FlagInv { get; set; }
     }
 }

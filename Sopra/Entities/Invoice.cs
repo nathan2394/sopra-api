@@ -6,6 +6,7 @@ namespace Sopra.Entities
     [Table(name: "Invoices")]
     public class Invoice : Entity
     {
+        public long ID { get; set; }
         public long? RefID { get; set; }
         public long? OrdersID { get; set; }
         public long? PaymentMethod { get; set; }
