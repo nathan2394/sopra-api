@@ -1043,7 +1043,7 @@ namespace Sopra.Services
                 var obj = await _context.Orders.FirstOrDefaultAsync(x => x.ID == id && x.IsDeleted == false && x.OrderStatus == "ACTIVE");
                 if (obj == null) return false;
 
-                var getUser = await _context.Users.FirstOrDefaultAsync(x => x.RefID == userId);
+                var getUser = await _context.Users.FirstOrDefaultAsync(x => x.ID == userId);
 
                 if (getUser != null)
                 {

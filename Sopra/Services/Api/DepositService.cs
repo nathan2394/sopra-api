@@ -27,7 +27,7 @@ namespace Sopra.Services
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
             try
             {
-                await _context.Deposits.AddAsync(data);
+                await _context.Deposit.AddAsync(data);
                 await _context.SaveChangesAsync();
 
                 // Check Validate
@@ -54,7 +54,7 @@ namespace Sopra.Services
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
             try
             {
-                var obj = await _context.Deposits.FirstOrDefaultAsync(x => x.ID == id && x.IsDeleted == false);
+                var obj = await _context.Deposit.FirstOrDefaultAsync(x => x.ID == id && x.IsDeleted == false);
                 if (obj == null) return false;
 
                 obj.IsDeleted = true;
@@ -87,7 +87,7 @@ namespace Sopra.Services
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
             try
             {
-                var obj = await _context.Deposits.FirstOrDefaultAsync(x => x.ID == data.ID && x.IsDeleted == false);
+                var obj = await _context.Deposit.FirstOrDefaultAsync(x => x.ID == data.ID && x.IsDeleted == false);
                 if (obj == null) return null;
 
                 obj.RefID = data.RefID;
@@ -124,7 +124,7 @@ namespace Sopra.Services
             try
             {
                 _context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
-                var query = from a in _context.Deposits where a.IsDeleted == false select a;
+                var query = from a in _context.Deposit where a.IsDeleted == false select a;
 
                 // Searching
                 if (!string.IsNullOrEmpty(search))
@@ -220,7 +220,7 @@ namespace Sopra.Services
         {
             try
             {
-                return await _context.Deposits.AsNoTracking().FirstOrDefaultAsync(x => x.ID == id && x.IsDeleted == false);
+                return await _context.Deposit.AsNoTracking().FirstOrDefaultAsync(x => x.ID == id && x.IsDeleted == false);
             }
             catch (Exception ex)
             {
