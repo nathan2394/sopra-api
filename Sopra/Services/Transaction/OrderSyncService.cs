@@ -258,7 +258,7 @@ namespace Sopra.Services
                                         TotalAmount = dataOrder.AmountTotal
                                     };
 
-                                    context.Deposits.Add(dataDeposit);
+                                    context.Deposit.Add(dataDeposit);
 
                                     Trace.WriteLine($"Sync DepositDetail with DepositID {Convert.ToString(dataDeposit.ID)}");
 
