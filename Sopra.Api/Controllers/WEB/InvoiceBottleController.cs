@@ -120,7 +120,7 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "OrderBottleController: Create");
+                Trace.WriteLine(message, "InvoiceBottleController: Create");
                 return BadRequest(new { message });
             }
         }
@@ -146,7 +146,7 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "OrderBottleController: Edit");
+                Trace.WriteLine(message, "InvoiceBottleController: Edit");
                 return BadRequest(new { message });
             }
         }
@@ -160,7 +160,7 @@ namespace Sopra.Api.Controllers
                 if (userId == 0) return BadRequest("Invalid Token");
 
                 var result = await _service.DeleteAsync(id, reason, userId);
-                var response = new Response<object>(result);
+                var response = new Response<bool>(result);
 
                 return Ok(response);
             }

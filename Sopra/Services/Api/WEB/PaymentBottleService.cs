@@ -18,10 +18,10 @@ namespace Sopra.Services
     {
         Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
         string filter, string date);
-        // Task<dynamic> GetByIdAsync(long id);
-        // Task<Invoice> CreateAsync(PaymentBottle data, int userId);
-        // Task<Invoice> EditAsync(PaymentBottle data, int userId);
-        // Task<bool> DeleteAsync(long id, int reason, int userId);
+        Task<dynamic> GetByIdAsync(long id);
+        Task<Payment> CreateAsync(PaymentBottle data, int userId);
+        Task<Payment> EditAsync(PaymentBottle data, int userId);
+        Task<bool> DeleteAsync(long id, int reason, int userId);
     }
 
     public class PaymentBottleService : PaymentBottleInterface
@@ -47,8 +47,8 @@ namespace Sopra.Services
                 throw new ArgumentException("Customer must not be empty.");
             }
 
-            // INVOICE NETTO
-            if (data.Netto <= 0)
+            // PAYMENT NETTO
+            if (data.AmtReceive <= 0 || data.Netto <= 0)
             {
                 throw new ArgumentException("Payment Netto must not be empty.");
             }
@@ -159,7 +159,7 @@ namespace Sopra.Services
                 }
                 else
                 {
-                    query = query.OrderByDescending(x => x.Payment.TransDate);
+                    query = query.OrderByDescending(x => x.Payment.DateIn);
                 }
 
                 if (dateBetween != "")
@@ -168,7 +168,6 @@ namespace Sopra.Services
                     var start = Convert.ToDateTime(dateSplit[0].Trim());
                     var end = Convert.ToDateTime(dateSplit[1].Trim());
                     query = query.Where(x => x.Payment.TransDate >= start && x.Payment.TransDate <= end);
-
                 }
 
                 // Get Total Before Limit and Page
@@ -197,15 +196,20 @@ namespace Sopra.Services
                         VoucherNo = x.Payment.PaymentNo,
                         TransDate = x.Payment.TransDate,
                         CustomerName = x.Customer?.Name ?? "",
+                        CustomersID = x.Payment.CustomersID,
 
                         Netto = x.Payment.Netto ?? 0,
                         AmtReceive = x.Payment.AmtReceive ?? 0,
+                        CompanyID = x.Payment.CompaniesID,
+
+                        BankRef = x.Payment.BankRef,
+                        BankTime = x.Payment.BankTime,
 
                         HandleBy = x.Payment.Username,
+                        Type = x.Payment.Type,
                         Status = x.Payment.Status
                     };
                 })
-                .Distinct()
                 .ToList();
 
                 return new ListResponse<dynamic>(resData, total, page);
@@ -215,6 +219,291 @@ namespace Sopra.Services
                 Trace.WriteLine(ex.Message);
                 if (ex.StackTrace != null)
                     Trace.WriteLine(ex.StackTrace);
+
+                throw;
+            }
+        }
+
+        public async Task<dynamic> GetByIdAsync(long id)
+        {
+            try
+            {
+                var data = await _context.Payments
+                .Where(x => x.ID == id && x.IsDeleted == false)
+                .Select(x => new
+                {
+                    Payment = x,
+                    CustomerName = _context.Users
+                        .Where(u => u.RefID == x.CustomersID)
+                        .Join(_context.Customers, u => u.CustomersID, c => c.RefID, (u, c) => c.Name)
+                        .FirstOrDefault() ?? ""
+                })
+                .FirstOrDefaultAsync();
+
+                if (data == null) return null;
+
+                var resData = new
+                {
+                    ID = data.Payment.ID,
+                    RefID = data.Payment.RefID,
+                    InvoicesID = data.Payment.InvoicesID,
+                    PaymentNo = data.Payment.PaymentNo,
+                    TransDate = data.Payment.TransDate,
+                    CustomersID = data.Payment.CustomersID,
+
+                    CompanyID = data.Payment.CompaniesID,
+                    CreatedBy = data.Payment.Username,
+
+                    Netto = data.Payment.Netto ?? 0,
+                    AmtReceive = data.Payment.AmtReceive ?? 0,
+
+                    BankTime = data.Payment.BankTime,
+                    BankRef = data.Payment.BankRef,
+
+
+                    Type = data.Payment.Type,
+                    Status = data.Payment.Status
+                };
+
+                return resData;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                throw;
+            }
+        }
+
+        public async Task<Payment> CreatePaymentAsync(PaymentBottle data, int userId)
+        {
+            try
+            {
+                Trace.WriteLine($"Creating payment with request = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                ValidateSave(data);
+
+                var newPaymentNo = await GenerateVoucherNo(data.CompanyID);
+
+                var payment = new Payment
+                {
+                    RefID = data.RefID,
+                    InvoicesID = data.InvoicesID,
+                    TransDate = data.TransDate,
+                    CustomersID = data.CustomersID,
+                    CompaniesID = data.CompanyID,
+                    Username = data.CreatedBy,
+                    Netto = data.Netto,
+                    BankTime = data.BankTime,
+                    BankRef = data.BankRef,
+                    AmtReceive = data.AmtReceive,
+                    Type = data.Type,
+                    Status = data.Status,
+                    PaymentNo = newPaymentNo,
+                    UserIn = userId
+                };
+
+                await _context.Payments.AddAsync(payment);
+                await _context.SaveChangesAsync();
+
+                if (data.BankRef == "DEPOSIT")
+                {
+                    var PaymentDeposit = new Deposit
+                    {
+                        ObjectID = payment.ID,
+                        CustomersID = payment.CustomersID,
+                        TotalAmount = payment.Netto * -1,
+                        TransDate = Utility.getCurrentTimestamps(),
+                        DateIn = Utility.getCurrentTimestamps(),
+                    };
+
+                    await _context.Deposit.AddAsync(PaymentDeposit);
+                    await _context.SaveChangesAsync();
+                }
+
+                var paymentLog = new UserLog
+                {
+                    ObjectID = payment.ID,
+                    ModuleID = 3, // Payment module
+                    UserID = userId,
+                    Description = $"Payment {payment.PaymentNo} was created.",
+                    TransDate = Utility.getCurrentTimestamps(),
+                    DateIn = Utility.getCurrentTimestamps(),
+                    UserIn = userId,
+                    UserUp = 0,
+                    IsDeleted = false
+                };
+
+                await _context.UserLogs.AddAsync(paymentLog);
+
+                await Utility.AfterSave(_context, "PaymentBottle", payment.ID, "Add");
+                await _context.SaveChangesAsync();
+
+                Trace.WriteLine($"Payment created successfully with ID = {payment.ID}");
+
+                return payment;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                Trace.WriteLine($"Error creating payment, request = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                throw;
+            }
+        }
+
+        public async Task<Payment> CreateAsync(PaymentBottle data, int userId)
+        {
+            await using var dbTrans = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var result = await CreatePaymentAsync(data, userId);
+                await dbTrans.CommitAsync();
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                Trace.WriteLine($"error save data payment, payload = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                await dbTrans.RollbackAsync();
+                Trace.WriteLine($"rollback db");
+                throw;
+            }
+        }
+
+        public async Task<Payment> EditAsync(PaymentBottle data, int userId)
+        {
+            await using var dbTrans = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                Trace.WriteLine($"Edit payment with request = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                ValidateSave(data);
+
+                var getPayment = _context.Payments
+                    .Where(i => i.ID == data.ID)
+                    .FirstOrDefault();
+
+                if (getPayment != null)
+                {
+                    getPayment.TransDate = data.TransDate;
+
+                    getPayment.DateUp = Utility.getCurrentTimestamps();
+                    getPayment.UserUp = userId;
+                }
+
+                _context.Payments.Update(getPayment);
+                await _context.SaveChangesAsync();
+
+                var paymentLog = new UserLog
+                {
+                    ObjectID = getPayment.ID,
+                    ModuleID = 3, // Payment module
+                    UserID = userId,
+                    Description = $"Payment was updated.",
+                    TransDate = Utility.getCurrentTimestamps(),
+                    DateIn = Utility.getCurrentTimestamps(),
+                    UserIn = userId,
+                    UserUp = 0,
+                    IsDeleted = false
+                };
+
+                await _context.UserLogs.AddAsync(paymentLog);
+
+                await Utility.AfterSave(_context, "PaymentBottle", getPayment.ID, "Add");
+                await _context.SaveChangesAsync();
+
+                Trace.WriteLine($"Payment created successfully with ID = {getPayment.ID}");
+
+                await dbTrans.CommitAsync();
+
+                return getPayment;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                Trace.WriteLine($"Error editing payment, request = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+
+                await dbTrans.RollbackAsync();
+
+                throw;
+            }
+        }
+        
+        public async Task<bool> DeleteAsync(long id, int reason, int userId)
+        {
+            await using var dbTrans = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var obj = await _context.Payments.FirstOrDefaultAsync(x => x.ID == id && x.IsDeleted == false && x.Status == "ACTIVE");
+                if (obj == null) return false;
+
+                var getUser = await _context.Users.FirstOrDefaultAsync(x => x.ID == userId);
+                if (getUser != null)
+                {
+                    obj.Status = "CANCEL";
+                    obj.ReasonsID = reason;
+                    obj.DateUp = Utility.getCurrentTimestamps();
+                    obj.UserUp = userId;
+                    obj.UsernameCancel = $"{getUser.FirstName} {getUser.LastName}";
+
+                    await _context.SaveChangesAsync();
+                    await Utility.AfterSave(_context, "PaymentBottle", id, "Delete");
+
+                    var PaymentDeposit = new Deposit
+                    {
+                        ObjectID = obj.ID,
+                        CustomersID = obj.CustomersID,
+                        TotalAmount = obj.Netto,
+                        TransDate = Utility.getCurrentTimestamps(),
+                        DateIn = Utility.getCurrentTimestamps(),
+                    };
+
+                    await _context.Deposit.AddAsync(PaymentDeposit);
+                    await _context.SaveChangesAsync();
+
+                    var logs = new UserLog
+                    {
+                        ObjectID = id,
+                        ModuleID = 3,
+                        UserID = userId,
+                        Description = "Payment was cancelled.",
+                        TransDate = Utility.getCurrentTimestamps(),
+                        DateIn = Utility.getCurrentTimestamps(),
+                        UserIn = userId,
+                        UserUp = 0,
+                        IsDeleted = false
+                    };
+
+                    await _context.UserLogs.AddAsync(logs);
+                    await _context.SaveChangesAsync();
+
+                    await dbTrans.CommitAsync();
+
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                await dbTrans.RollbackAsync();
 
                 throw;
             }
