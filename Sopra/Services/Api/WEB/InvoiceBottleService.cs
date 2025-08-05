@@ -23,7 +23,7 @@ namespace Sopra.Services
         Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
         string filter, string date);
         Task<dynamic> GetByIdAsync(long id);
-        Task<ListResponse<Invoice>> GetByOrderIdAsync(long id);
+        Task<ListResponse<dynamic>> GetByOrderIdAsync(long id);
         Task<Invoice> CreateAsync(InvoiceBottle data, int userId);
         Task<Invoice> EditAsync(InvoiceBottle data, int userId);
         Task<bool> DeleteAsync(long id, int reason, int userId);
@@ -148,6 +148,11 @@ namespace Sopra.Services
                                 "invoicestatus" => query.Where(x => x.Invoice.Status.Contains(value)),
                                 "customersid" => query.Where(x => x.Invoice.CustomersID.ToString().Equals(value)),
                                 "companyid" => query.Where(x => x.Invoice.CompaniesID.ToString().Equals(value)),
+                                "ispaid" => value == "0"
+                                    ? query.Where(x => x.Payment == null)
+                                    : value == "1"
+                                        ? query.Where(x => x.Payment != null)
+                                        : query,
                                 _ => query
                             };
                         }
@@ -244,9 +249,11 @@ namespace Sopra.Services
                         HandleBy = x.Invoice.Username,
                         Status = x.Invoice.Status,
 
-                        Progress = x.Invoice.FlagInv == 1
-                        ? (x.Payment == null ? "Requested" : "Paid")
-                        : "Unpaid"
+                        Progress = x.Invoice.Status == "ACTIVE"
+                        ? (x.Payment == null
+                        ? (x.Invoice.FlagInv == 1 ? "requested" : "invoiced")
+                        : "paid")
+                        : "cancel"
                     };
                 })
                 .Distinct()
@@ -317,16 +324,38 @@ namespace Sopra.Services
             }
         }
 
-        public async Task<ListResponse<Invoice>> GetByOrderIdAsync(long id)
+        public async Task<ListResponse<dynamic>> GetByOrderIdAsync(long id)
         {
             try
             {
-                var data = await _context.Invoices
-                    .Where(x => x.OrdersID == id && x.IsDeleted == false)
-                    .ToListAsync();
+                _context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
 
-                // Use constructor with required parameters
-                return new ListResponse<Invoice>(data ?? new List<Invoice>(), data?.Count ?? 0, 0);
+                var data = from i in _context.Invoices
+                    join p in _context.Payments on i.ID equals p.InvoicesID into paymentJoin
+                    from p in paymentJoin.DefaultIfEmpty()
+                    where i.OrdersID == id && i.IsDeleted == false
+                    select new { Invoice = i, Payment = p };
+
+                var resData = data.Select(x => new
+                {
+                    id = x.Invoice.ID,
+                    refID = x.Invoice.RefID,
+                    type = x.Invoice.Type,
+                    invoiceNo = x.Invoice.InvoiceNo,
+                    paymentMethod = x.Invoice.PaymentMethod,
+                    status = x.Invoice.Status,
+                    transDate = x.Invoice.TransDate,
+                    dueDate = x.Invoice.DueDate,
+                    netto = x.Invoice.Netto,
+                    refund = x.Invoice.Refund,
+                    bill = x.Invoice.Bill,
+                    flagInv = x.Invoice.FlagInv,
+                    progress = (x.Payment != null) ? "paid" :
+                      x.Invoice.FlagInv == 1 ? "requested" :
+                      x.Invoice.FlagInv == 0 ? "invoiced" : "unknown",
+                }).ToList();
+
+                return new ListResponse<dynamic>(resData, resData?.Count ?? 0, 0);
             }
             catch (Exception ex)
             {
@@ -334,8 +363,7 @@ namespace Sopra.Services
                 if (ex.StackTrace != null)
                     Trace.WriteLine(ex.StackTrace);
 
-                // Return error response using constructor
-                return new ListResponse<Invoice>(new List<Invoice>(), 0, 0);
+                throw;
             }
         }
 
@@ -443,7 +471,9 @@ namespace Sopra.Services
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
             try
             {
-                return await CreateInvoiceAsync(data, userId);
+                var result = await CreateInvoiceAsync(data, userId);
+                await dbTrans.CommitAsync();
+                return result;
             }
             catch (Exception ex)
             {
@@ -451,7 +481,7 @@ namespace Sopra.Services
                 if (ex.StackTrace != null)
                     Trace.WriteLine(ex.StackTrace);
 
-                Trace.WriteLine($"error save data order, payload = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                Trace.WriteLine($"error save data invoice, payload = " + JsonConvert.SerializeObject(data, Formatting.Indented));
                 await dbTrans.RollbackAsync();
                 Trace.WriteLine($"rollback db");
                 throw;
@@ -539,7 +569,7 @@ namespace Sopra.Services
                 if (ex.StackTrace != null)
                     Trace.WriteLine(ex.StackTrace);
 
-                Trace.WriteLine($"Error creating invoice, request = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                Trace.WriteLine($"Error editing invoice, request = " + JsonConvert.SerializeObject(data, Formatting.Indented));
 
                 await dbTrans.RollbackAsync();
 
@@ -567,12 +597,12 @@ namespace Sopra.Services
 
                     await _context.SaveChangesAsync();
 
-                    await Utility.AfterSave(_context, "OrderBottle", id, "Delete");
+                    await Utility.AfterSave(_context, "InvoiceBottle", id, "Delete");
 
                     var logs = new UserLog
                     {
                         ObjectID = id,
-                        ModuleID = 1,
+                        ModuleID = 2, // Invoice module
                         UserID = userId,
                         Description = "Invoice was cancelled.",
                         TransDate = Utility.getCurrentTimestamps(),

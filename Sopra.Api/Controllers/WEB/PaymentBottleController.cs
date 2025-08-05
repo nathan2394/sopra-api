@@ -51,7 +51,107 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "InvoiceBottleController: Get All");
+                Trace.WriteLine(message, "PaymentBottleController: Get All");
+                return BadRequest(new { message });
+            }
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(int id)
+        {
+            try
+            {
+                var result = await _service.GetByIdAsync(id);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "PaymentBottleController: Get by ID");
+                return BadRequest(new { message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Create(PaymentBottle obj)
+        {
+            try
+            {
+                var userId = await getUserId();
+                if (userId == 0) return BadRequest("Invalid Token");
+
+                var result = await _service.CreateAsync(obj, userId);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "PaymentBottleController: Create");
+                return BadRequest(new { message });
+            }
+        }
+
+        [HttpPut]
+        public async Task<IActionResult> Edit([FromBody] PaymentBottle obj)
+        {
+            try
+            {
+                var userId = await getUserId();
+                if (userId == 0) return BadRequest("Invalid Token");
+
+                var result = await _service.EditAsync(obj, userId);
+                var response = new Response<Payment>(result);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "PaymentBottleController: Edit");
+                return BadRequest(new { message });
+            }
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(long id, [FromQuery] int reason)
+        {
+            try
+            {
+                var userId = await getUserId();
+                if (userId == 0) return BadRequest("Invalid Token");
+
+                var result = await _service.DeleteAsync(id, reason, userId);
+                var response = new Response<bool>(result);
+
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "PaymentBottleController: Delete");
                 return BadRequest(new { message });
             }
         }

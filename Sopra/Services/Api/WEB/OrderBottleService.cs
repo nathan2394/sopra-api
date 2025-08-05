@@ -32,15 +32,21 @@ namespace Sopra.Services
         private readonly EFContext _context;
         private readonly IOrderBottleRepository _orderBottleRepository;
         private readonly InvoiceBottleService _invoiceService;
+        private readonly PaymentBottleService _paymentService;
 
         public OrderBottleService(IOrderBottleRepository orderBottleRepository)
         {
             _orderBottleRepository = orderBottleRepository;
         }
-        public OrderBottleService(EFContext context, InvoiceBottleService invoiceService)
+        public OrderBottleService(
+            EFContext context,
+            InvoiceBottleService invoiceService,
+            PaymentBottleService paymentService
+        )
         {
             _context = context;
             _invoiceService = invoiceService;
+            _paymentService = paymentService;
         }
 
         private void ValidateSave(OrderBottleDto data)
@@ -136,8 +142,15 @@ namespace Sopra.Services
                             join c in _context.Users on a.CustomersID equals c.RefID
                             join d in _context.Customers on c.CustomersID equals d.RefID into customerJoin
                             from d in customerJoin.DefaultIfEmpty()
+                                //  join i in _context.Invoices on a.ID equals i.OrdersID into invoiceJoin
+                                //  from i in invoiceJoin.DefaultIfEmpty()
                             where a.IsDeleted == false
-                            select new { Order = a, Customer = d };
+                            select new
+                            {
+                                Order = a,
+                                Customer = d,
+                                //  Invoice = i
+                            };
 
                 var dateBetween = "";
 
@@ -171,6 +184,11 @@ namespace Sopra.Services
                                 "customersid" => query.Where(x => x.Order.CustomersID.ToString().Equals(value)),
                                 "referenceno" => query.Where(x => x.Order.ReferenceNo.Contains(value)),
                                 "companyid" => query.Where(x => x.Order.CompaniesID.ToString().Equals(value)),
+                                // "isinvoice" => value == "0"
+                                //     ? query.Where(x => x.Invoice == null)
+                                //     : value == "1"
+                                //         ? query.Where(x => x.Invoice != null)
+                                //         : query,
                                 _ => query
                             };
                         }
@@ -272,7 +290,6 @@ namespace Sopra.Services
                         Status = x.Order.OrderStatus,
                     };
                 })
-                .Distinct()
                 .ToList();
 
                 return new ListResponse<dynamic>(resData, total, page);
@@ -634,7 +651,7 @@ namespace Sopra.Services
                 // INSERT INVOICES
                 foreach (var item in data.InvoiceItems)
                 {
-                    var refinedItem = new InvoiceBottle
+                    var invoiceItem = new InvoiceBottle
                     {
                         RefID = item.RefID,
                         OrdersID = order.ID,
@@ -651,7 +668,29 @@ namespace Sopra.Services
                         FlagInv = item.FlagInv
                     };
 
-                    var invoice = await _invoiceService.CreateInvoiceAsync(refinedItem, userId);
+                    var invoice = await _invoiceService.CreateInvoiceAsync(invoiceItem, userId);
+
+                    // INSERT PAYMENT (DEPOSIT)
+                    if (item.PaymentMethod == 3)
+                    {
+                        var paymentItem = new PaymentBottle
+                        {
+                            RefID = invoice.RefID,
+                            InvoicesID = invoice.ID,
+                            TransDate = invoice.TransDate,
+                            CustomersID = invoice.CustomersID,
+                            CompanyID = invoice.CompaniesID,
+                            CreatedBy = invoice.Username,
+                            Netto = invoice.Netto,
+                            BankTime = Utility.getCurrentTimestamps(),
+                            BankRef = "DEPOSIT",
+                            AmtReceive = invoice.Netto,
+                            Type = invoice.Type,
+                            Status = "ACTIVE"
+                        };
+
+                        var payment = await _paymentService.CreatePaymentAsync(paymentItem, userId);
+                    }
                 }
 
                 await Utility.AfterSave(_context, "OrderBottle", data.ID, "Add");

@@ -66,7 +66,7 @@ namespace Sopra.Services
                             if (fieldName == "transdate") dateBetween = Convert.ToString(value);
                             query = fieldName switch
                             {
-                                "customersid" => query.Where(x => x.Deposit.RefID.ToString().Equals(value)),
+                                "customersid" => query.Where(x => x.Deposit.CustomersID.ToString().Equals(value)),
                                 "customersname" => query.Where(x => x.Customer.Name.ToString().Equals(value)),
                                 _ => query
                             };
@@ -145,7 +145,6 @@ namespace Sopra.Services
                         TotalAmount = x.Deposit.TotalAmount
                     };
                 })
-                .Distinct()
                 .ToList();
 
                 return new ListResponse<dynamic>(resData, total, page);
