@@ -56,6 +56,34 @@ namespace Sopra.Api.Controllers
 			}
 		}
 
+		[HttpPost("google-login")]
+		public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request)
+		{
+			try
+			{
+				var user = await _service.AuthenticateWithGoogle(request.GoogleToken, request.IpAddress);
+
+				if (user == null)
+				{
+					return BadRequest(new { message = "Google authentication failed. User not found or invalid token." });
+				}
+
+				var token = _service.GenerateToken(user);
+				
+				return Ok(new 
+				{ 
+					data = user, 
+					token = token,
+					message = "Google login successful"
+				});
+			}
+			catch (Exception ex)
+			{
+				Trace.WriteLine($"Google login endpoint error: {ex.Message}");
+				return StatusCode(500, new { message = "Internal server error during Google authentication" });
+			}
+		}
+
 		[HttpPost("login/otp")]
 		public async Task<IActionResult> AuthenticateOTP([FromQuery(Name = "phone")] string phone)
 		{
