@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Caching.Memory;
+﻿using Google.Apis.Auth;
+
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 
@@ -162,13 +164,13 @@ namespace Sopra.Services
 				context.Dispose();
 			}
 		}
-
+		
 		public User AuthenticateVerifyOTP(string code, string ipAddress)
 		{
 			var query = from a in context.Users
 						join b in context.Customers
-						on a.CustomersID equals b.RefID 
-						where b.OtpCode == code 
+						on a.CustomersID equals b.RefID
+						where b.OtpCode == code
 						&& a.IsDeleted == false
 						&& b.IsDeleted == false
 						&& b.Status == 1
@@ -211,7 +213,6 @@ namespace Sopra.Services
 			}
 		}
 
-
 		public string GenerateToken(User user)
 		{
 			var tokenHandler = new JwtSecurityTokenHandler();
@@ -232,6 +233,75 @@ namespace Sopra.Services
 			};
 			var token = tokenHandler.CreateToken(tokenDescriptor);
 			return tokenHandler.WriteToken(token);
+		}
+
+		public async Task<User> AuthenticateWithGoogle(string googleToken, string ipAddress)
+		{
+			try
+			{
+				var googleUser = await VerifyGoogleToken(googleToken);
+				if (googleUser == null)
+				{
+					return null;
+				}
+
+				var user = context.Users.FirstOrDefault(x => x.Email == googleUser.Email && x.IsDeleted == false);
+				
+				if (user == null)
+				{
+					return null;
+				}
+
+				DateTime utcNow = DateTime.UtcNow;
+				TimeZoneInfo gmtPlus7 = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+				DateTime gmtPlus7Time = TimeZoneInfo.ConvertTimeFromUtc(utcNow, gmtPlus7);
+
+				user.Password = "";
+
+				var userDealer = this.context.UserDealers.Where(x => x.UserId == user.RefID && gmtPlus7Time < x.EndDate).FirstOrDefault();
+				if (userDealer != null) user.Dealer = this.context.Dealers.FirstOrDefault(x => x.RefID == userDealer.DealerId);
+
+				var customer = this.context.Customers.FirstOrDefault(x => x.RefID == user.CustomersID);
+				if (customer != null) user.Customer = customer;
+
+				return user;
+			}
+			catch (Exception ex)
+			{
+				Trace.WriteLine($"Google authentication error: {ex.Message}");
+				if (ex.StackTrace != null)
+					Trace.WriteLine(ex.StackTrace);
+				return null;
+			}
+			finally
+			{
+				context.Dispose();
+			}
+		}
+
+		private async Task<GoogleUserInfo> VerifyGoogleToken(string token)
+		{
+			try
+			{
+				var googleClientId = config.GetSection("GoogleAuth")["ClientId"];
+				
+				var payload = await GoogleJsonWebSignature.ValidateAsync(token, new GoogleJsonWebSignature.ValidationSettings()
+				{
+					Audience = new[] { googleClientId }
+				});
+
+				return new GoogleUserInfo
+				{
+					GoogleId = payload.Subject,
+					Email = payload.Email,
+					Name = payload.Name,
+				};
+			}
+			catch (Exception ex)
+			{
+				Trace.WriteLine($"Google token verification failed: {ex.Message}");
+				return null;
+			}
 		}
 
 		private string GenerateOTP()

@@ -15,6 +15,7 @@ namespace Sopra.Services
     {
 		User Authenticate(string email, string password, string ipAddress);
         Task<AuthResponse> UserAuthenticate(string email, string firebaseToken);
+        Task<User> AuthenticateWithGoogle(string googleToken, string ipAddress);
         Task<AuthenticationOTPRequest> AuthenticateOTP(string phone, string ipAddress);
 		User AuthenticateVerifyOTP(string code, string ipAddress);
         // User ChangeProfile(string fullName, string password, long id);

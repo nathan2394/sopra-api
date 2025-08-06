@@ -113,7 +113,37 @@ namespace Sopra.Services
                         ul.UserID,
                         ul.Description,
                         ul.TransDate,
-                        User = new { u.FirstName, u.LastName, FullName = u.FirstName + " " + u.LastName }
+                        User = new
+                        {
+                            u.FirstName,
+                            u.LastName,
+                            FullName = u.FirstName + " " + u.LastName
+                        }
+                    })
+                    .OrderByDescending(x => x.TransDate)
+                    .ToListAsync();
+
+                var paymentLogs = await (
+                    from o in _context.Orders
+                    join i in _context.Invoices on o.ID equals i.OrdersID
+                    join p in _context.Payments on i.ID equals p.InvoicesID
+                    join ul in _context.UserLogs on p.ID equals ul.ObjectID
+                    join u in _context.Users on ul.UserID equals u.ID
+                    where o.ID == objectId && ul.ModuleID == 3 && !ul.IsDeleted
+                    select new
+                    {
+                        ul.ID,
+                        ul.ObjectID,
+                        ul.ModuleID,
+                        ul.UserID,
+                        ul.Description,
+                        ul.TransDate,
+                        User = new
+                        {
+                            u.FirstName,
+                            u.LastName,
+                            FullName = u.FirstName + " " + u.LastName
+                        }
                     })
                     .OrderByDescending(x => x.TransDate)
                     .ToListAsync();
@@ -121,10 +151,11 @@ namespace Sopra.Services
                 var result = new
                 {
                     order = orderLogs,
-                    invoice = invoiceLogs
+                    invoice = invoiceLogs,
+                    payment = paymentLogs
                 };
                 
-                return new ListResponse<dynamic>(new[] { result }, orderLogs.Count + invoiceLogs.Count, 0);
+                return new ListResponse<dynamic>(new[] { result }, orderLogs.Count + invoiceLogs.Count + paymentLogs.Count, 0);
             }
             catch (Exception ex)
             {
