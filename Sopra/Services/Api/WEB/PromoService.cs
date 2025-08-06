@@ -14,12 +14,14 @@ using Sopra.Entities;
 using System.Data;
 using Newtonsoft.Json;
 using Microsoft.Extensions.Configuration;
+using System.Runtime.Serialization;
 
 namespace Sopra.Services
 {
     public interface PromosInterface
     {
         Task<ListResponse<Promos>> GetAllAsync(int limit, int page, int total, string search, string sort, string filter, string date);
+        Task<ListResponse<dynamic>> GetPendingPromoApproval();
     }
 
     public class PromosService : PromosInterface
@@ -30,7 +32,7 @@ namespace Sopra.Services
         {
             _context = context;
         }
-        
+
         public Task<ListResponse<Promos>> GetAllAsync(int limit, int page, int total, string search, string sort, string filter, string date)
         {
             try
@@ -79,7 +81,8 @@ namespace Sopra.Services
                             StartDate = firstItemInGroup["StartDate"] != null ? Convert.ToDateTime(firstItemInGroup["StartDate"]) : (DateTime?)null,
                             EndDate = firstItemInGroup["EndDate"] != null ? Convert.ToDateTime(firstItemInGroup["EndDate"]) : (DateTime?)null,
                             Products = new List<Products>(),
-                            Quantities = new Quantities {
+                            Quantities = new Quantities
+                            {
                                 Qty1 = firstItemInGroup["Qty1"] != null ? Convert.ToInt64(firstItemInGroup["Qty1"]) : (long?)null,
                                 Qty2 = firstItemInGroup["Qty2"] != null ? Convert.ToInt64(firstItemInGroup["Qty2"]) : (long?)null,
                                 Qty3 = firstItemInGroup["Qty3"] != null ? Convert.ToInt64(firstItemInGroup["Qty3"]) : (long?)null
@@ -123,6 +126,43 @@ namespace Sopra.Services
 
                 throw;
             }
+        }
+
+
+        public async Task<ListResponse<dynamic>> GetPendingPromoApproval()
+        {
+            var query = (from o in _context.Orders
+                        join od in _context.OrderDetails on o.ID equals od.OrdersID
+                        join p in _context.Promos on od.PromosID equals p.RefID
+                        join pd in _context.PromoProducts on p.RefID equals pd.PromoMixId
+                        join pq in _context.PromoQuantities on p.RefID equals pq.PromoMixId
+                        where od.Type == "Mix" && o.OrderStatus != "CANCEL"
+                        select new
+                        {
+                            OrdersID = o.ID,
+                            DetailID = od.ID,
+                            Type = od.Type,
+                            ProductID = od.ObjectID,
+                            PromoName = p.Name
+                        });
+
+            var total = await query.CountAsync();
+            var data = await query.ToListAsync();
+
+            var resData = data.Select(x =>
+            {
+                return new
+                {
+                    OrdersID = x.OrdersID,
+                    DetailID = x.DetailID,
+                    Type = x.Type,
+                    ProductID = x.ProductID,
+                    PromoName = x.PromoName
+                };
+            })
+            .ToList();
+                
+            return new ListResponse<dynamic>(resData, total, 0);
         }
     }
 }

@@ -113,7 +113,7 @@ namespace Sopra.Services
                             join c in _context.Users on a.CustomersID equals c.RefID
                             join d in _context.Customers on c.CustomersID equals d.RefID into customerJoin
                             from d in customerJoin.DefaultIfEmpty()
-                            join p in _context.Payments on a.ID equals p.InvoicesID into paymentJoin
+                            join p in _context.Payments.Where(p => p.Status != "CANCEL") on a.ID equals p.InvoicesID into paymentJoin
                             from p in paymentJoin.DefaultIfEmpty()
                             where a.IsDeleted == false
                             select new { Invoice = a, Customer = d, Payment = p };
@@ -299,6 +299,7 @@ namespace Sopra.Services
                     CustomerID = data.Invoice.CustomersID,
                     CustomerName = data.CustomerName,
                     PaymentMethod = data.Invoice.PaymentMethod,
+                    CompanyID = data.Invoice.CompaniesID,
 
                     Refund = data.Invoice.Refund ?? 0,
                     Bill = data.Invoice.Bill ?? 0,
@@ -331,28 +332,34 @@ namespace Sopra.Services
                 _context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
 
                 var data = from i in _context.Invoices
-                    join p in _context.Payments on i.ID equals p.InvoicesID into paymentJoin
+                    join p in _context.Payments.Where(p => p.Status != "CANCEL") on i.ID equals p.InvoicesID into paymentJoin
                     from p in paymentJoin.DefaultIfEmpty()
                     where i.OrdersID == id && i.IsDeleted == false
                     select new { Invoice = i, Payment = p };
 
                 var resData = data.Select(x => new
                 {
-                    id = x.Invoice.ID,
-                    refID = x.Invoice.RefID,
-                    type = x.Invoice.Type,
-                    invoiceNo = x.Invoice.InvoiceNo,
-                    paymentMethod = x.Invoice.PaymentMethod,
-                    status = x.Invoice.Status,
-                    transDate = x.Invoice.TransDate,
-                    dueDate = x.Invoice.DueDate,
-                    netto = x.Invoice.Netto,
-                    refund = x.Invoice.Refund,
-                    bill = x.Invoice.Bill,
-                    flagInv = x.Invoice.FlagInv,
-                    progress = (x.Payment != null) ? "paid" :
-                      x.Invoice.FlagInv == 1 ? "requested" :
-                      x.Invoice.FlagInv == 0 ? "invoiced" : "unknown",
+                    ID = x.Invoice.ID,
+                    RefID = x.Invoice.RefID,
+                    Type = x.Invoice.Type,
+                    InvoiceNo = x.Invoice.InvoiceNo,
+                    TransDate = x.Invoice.TransDate,
+                    PaymentMethod = x.Invoice.PaymentMethod,
+
+                    Refund = x.Invoice.Refund,
+                    Bill = x.Invoice.Bill,
+                    Netto = x.Invoice.Netto,
+
+                    FlagInv = x.Invoice.FlagInv,
+                    DueDate = x.Invoice.DueDate,
+
+                    Status = x.Invoice.Status,
+
+                    Progress = x.Invoice.Status == "ACTIVE"
+                    ? (x.Payment == null
+                    ? (x.Invoice.FlagInv == 1 ? "requested" : "invoiced")
+                    : "paid")
+                    : "cancel"
                 }).ToList();
 
                 return new ListResponse<dynamic>(resData, resData?.Count ?? 0, 0);
