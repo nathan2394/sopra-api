@@ -38,7 +38,29 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "OrderBottleController: Get All");
+                Trace.WriteLine(message, "PromoController: Get All");
+                return BadRequest(new { message });
+            }
+        }
+
+        [HttpGet("PendingApproval")]
+        public async Task<IActionResult> GetPendingPromoApproval()
+        {
+            try
+            {
+                var result = await _service.GetPendingPromoApproval();
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "PromoController: Get Pending Promo Approval");
                 return BadRequest(new { message });
             }
         }
