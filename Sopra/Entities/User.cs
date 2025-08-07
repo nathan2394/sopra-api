@@ -25,6 +25,7 @@ namespace Sopra.Entities
         public string? CustNum { get; set; }
         public long? CustomerGroup { get; set; }
         public DateTime? LastLoginDates { get; set; }
+        public long? LoginAttempts { get; set; }
         public long? CompanyID { get; set; }
         public string? Subdomain { get; set; }
         public string? FirebaseToken { get; set; }

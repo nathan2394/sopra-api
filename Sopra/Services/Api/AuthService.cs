@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 
 using System;
 using System.Linq;
+
 using System.Text;
 using System.Threading.Tasks;
 using System.Security.Claims;
@@ -28,6 +29,7 @@ namespace Sopra.Services
 	public class AuthService : IAuthService
 	{
 		private readonly EFContext context;
+		private readonly DateTime currentTime;
 		private readonly IMemoryCache memoryCache;
 		private readonly IConfiguration config;
 		// private readonly IUserLogService _userLog;
@@ -37,6 +39,7 @@ namespace Sopra.Services
 			this.context = context;
 			this.memoryCache = memoryCache;
 			this.config = config;
+			this.currentTime = Helpers.Utility.getCurrentTimestamps();
 			// _userLog = userLog;
 		}
 
@@ -47,34 +50,40 @@ namespace Sopra.Services
 			try
 			{
 				if (user == null)
-					return null;
+					throw new ArgumentException("User can't be found.");
+
+				if (IsAccountLocked(user))
+				{
+					throw new ArgumentException("Sorry your account has been locked, please try again in 5 Minutes !");
+				}
+				
+				user.LastLoginDates = currentTime;
 
 				if (!Helpers.Utility.VerifyHashedPassword(user.Password, password))
 				{
-					// await _userLog.UserLog(user.ID, $"{email} login with IP Address {ipAddress} - Failed");
-					return null;
+					user.LoginAttempts = (user.LoginAttempts ?? 0) + 1;
+					context.SaveChanges();
+
+					var remainingAttempts = 5 - user.LoginAttempts.Value;
+					throw new ArgumentException(remainingAttempts > 0 
+						? $"The password you entered is incorrect, you have {remainingAttempts} more chances."
+						: "Sorry your account has been locked, please try again in 5 Minutes!");
 				}
 
-                // await _userLog.UserLog(user.ID, $"{email} login with IP Address {ipAddress}");
-                // user.Password = string.Empty;
+				user.LoginAttempts = 0;
+				user.LastLoginDates = currentTime;
 
-                //var token = GenerateToken(user);
-                //var response = new AuthResponse(user, token);
+				var userDealer = this.context.UserDealers.Where(x => x.UserId == user.RefID && currentTime < x.EndDate).FirstOrDefault();
+				if (userDealer != null) 
+					user.Dealer = this.context.Dealers.FirstOrDefault(x => x.RefID == userDealer.DealerId);
 
-                //return response;
-                DateTime utcNow = DateTime.UtcNow; // Get the current UTC time
-                TimeZoneInfo gmtPlus7 = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"); // Time zone for GMT+7
-                DateTime gmtPlus7Time = TimeZoneInfo.ConvertTimeFromUtc(utcNow, gmtPlus7); // Convert UTC to GMT+7
+				var customer = this.context.Customers.FirstOrDefault(x => x.RefID == user.CustomersID);
+				if (customer != null) 
+					user.Customer = customer;
 
-                user.Password = "";	
-
-                var userDealer = this.context.UserDealers.Where(x => x.UserId == user.RefID && gmtPlus7Time < x.EndDate).FirstOrDefault();
-				if(userDealer != null) user.Dealer = this.context.Dealers.FirstOrDefault(x => x.RefID == userDealer.DealerId);
-
-                var customer = this.context.Customers.FirstOrDefault(x => x.RefID == user.CustomersID);
-				if (customer != null) user.Customer = customer;
-
-                return user;
+				context.SaveChanges();
+				
+				return user;
 			}
 			catch (Exception ex)
 			{
@@ -82,12 +91,35 @@ namespace Sopra.Services
 				if (ex.StackTrace != null)
 					Trace.WriteLine(ex.StackTrace);
 
-				return null;
+				throw;
 			}
 			finally
 			{
 				context.Dispose();
 			}
+		}
+
+		private bool IsAccountLocked(User user)
+		{
+			const int maxAttempts = 5;
+			const int lockoutMinutes = 5;
+
+			if (user.LoginAttempts == null || user.LoginAttempts < maxAttempts)
+				return false;
+
+			if (user.LastLoginDates == null)
+				return user.LoginAttempts >= maxAttempts;
+			
+			TimeSpan LastAttemptDiff = currentTime - user.LastLoginDates.Value;
+			
+			if (LastAttemptDiff.TotalMinutes >= lockoutMinutes)
+			{
+				user.LoginAttempts = 0;
+				context.SaveChanges();
+				return false;
+			}
+
+			return true;
 		}
 
         public async Task<AuthResponse> UserAuthenticate(string email,  string firebaseToken)

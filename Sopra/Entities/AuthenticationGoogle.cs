@@ -6,8 +6,6 @@ namespace Sopra.Entities
     {
         [Required]
         public string GoogleToken { get; set; }
-
-        public string IpAddress { get; set; }
     }
 
     public class GoogleUserInfo

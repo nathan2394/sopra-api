@@ -61,11 +61,12 @@ namespace Sopra.Api.Controllers
 		{
 			try
 			{
-				var user = await _service.AuthenticateWithGoogle(request.GoogleToken, request.IpAddress);
+				var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
 
+				var user = await _service.AuthenticateWithGoogle(request.GoogleToken, ipAddress);
 				if (user == null)
 				{
-					return BadRequest(new { message = "Google authentication failed. User not found or invalid token." });
+					return BadRequest(new { message = "User can't be found" });
 				}
 
 				var token = _service.GenerateToken(user);
@@ -74,7 +75,6 @@ namespace Sopra.Api.Controllers
 				{ 
 					data = user, 
 					token = token,
-					message = "Google login successful"
 				});
 			}
 			catch (Exception ex)
