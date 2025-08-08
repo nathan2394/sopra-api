@@ -51,6 +51,9 @@ namespace Sopra.Services
 
         private void ValidateSave(OrderBottleDto data)
         {
+            bool hasValidRegulerItem = data.RegulerItems?.Any(item => item.ProductsId > 0) ?? false;
+            bool hasValidMixItem = data.MixItems?.Any(item => item.ProductsId > 0) ?? false;
+
             // STATUS
             if (data.OrderStatus == "CANCEL")
             {
@@ -61,6 +64,18 @@ namespace Sopra.Services
             if (data.CustomerId <= 0)
             {
                 throw new ArgumentException("Customer must not be empty.");
+            }
+
+            // EMPTY ORDER
+            if (!hasValidRegulerItem && !hasValidMixItem)
+            {
+                throw new ArgumentException("Order can't be save if there's no product in it, try adding some products.");
+            }
+
+            // ORDER AMOUNT
+            if (data.Amount <= 0)
+            {
+                throw new ArgumentException("Order amount must be greater than 0.");
             }
 
             // REGULER ITEMS
@@ -554,12 +569,12 @@ namespace Sopra.Services
                     IsDeleted = false
                 };
 
-                logItems.Add(orderLogs); 
-
                 // INSERT REGULER
                 var allOrderDetails = new List<OrderDetail>();
                 foreach (var item in data.RegulerItems)
                 {
+                    if (item.ProductsId <= 0 || item.Qty <= 0) continue;
+
                     var regulerDetail = new OrderDetail
                     {
                         OrdersID = order.ID,
@@ -577,6 +592,8 @@ namespace Sopra.Services
 
                     foreach (var closure in item.ClosureItems)
                     {
+                        if (closure.ProductsId <= 0 || closure.Qty <= 0) continue;
+
                         var closureDetail = new OrderDetail
                         {
                             OrdersID = order.ID,
@@ -599,6 +616,8 @@ namespace Sopra.Services
                 // INSERT MIX
                 foreach (var item in data.MixItems)
                 {
+                    if (item.ProductsId <= 0 || item.Qty <= 0) continue;
+
                     var mixDetail = new OrderDetail
                     {
                         OrdersID = order.ID,
@@ -774,6 +793,8 @@ namespace Sopra.Services
                 var allOrderDetails = new List<OrderDetail>();
                 foreach (var item in data.RegulerItems)
                 {
+                    if (item.ProductsId <= 0 || item.Qty <= 0) continue;
+
                     var regulerDetail = new OrderDetail
                     {
                         OrdersID = obj.ID,
@@ -791,6 +812,8 @@ namespace Sopra.Services
 
                     foreach (var closure in item.ClosureItems)
                     {
+                        if (closure.ProductsId <= 0 || closure.Qty <= 0) continue;
+
                         var closureDetail = new OrderDetail
                         {
                             OrdersID = obj.ID,
@@ -814,6 +837,8 @@ namespace Sopra.Services
                 // MAP MIX PRODUCT PAYLOAD
                 foreach (var item in data.MixItems)
                 {
+                    if (item.ProductsId <= 0 || item.Qty <= 0) continue;
+                    
                     var mixDetail = new OrderDetail
                     {
                         OrdersID = obj.ID,

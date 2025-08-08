@@ -213,6 +213,7 @@ namespace Sopra.Api
             //services.AddScoped<IServiceGcpAsync<Gcp>, GcpService>();
             services.AddScoped<SnapBcaService>();
             services.AddScoped<DepositsInterface, DepositsService>();
+            services.AddScoped<CustomersInterface, CustomersService>();
             services.AddScoped<OrderInterface, OrderService>();
             services.AddScoped<OrderBottleInterface, OrderBottleService>();
             services.AddScoped<InvoiceBottleService>();
