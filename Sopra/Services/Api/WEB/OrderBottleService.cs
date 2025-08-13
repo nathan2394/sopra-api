@@ -72,10 +72,10 @@ namespace Sopra.Services
                 throw new ArgumentException("Order can't be save if there's no product in it, try adding some products.");
             }
 
-            // ORDER AMOUNT
-            if (data.Amount <= 0)
+            // ORDER NETTO
+            if (data.Netto <= 0)
             {
-                throw new ArgumentException("Order amount must be greater than 0.");
+                throw new ArgumentException("Order netto must be greater than 0.");
             }
 
             // REGULER ITEMS
@@ -443,6 +443,7 @@ namespace Sopra.Services
                     CreatedBy = data.Username,
                     OrderStatus = data.OrderStatus,
                     DiscStatus = data.Status,
+                    Amount = data.Amount ?? 0,
                     TotalReguler = Math.Floor(data.TotalReguler ?? 0),
                     TotalMix = data.TotalMix ?? 0,
                     DiscPercentage = data.Disc1 ?? 0,
