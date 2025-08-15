@@ -13,6 +13,7 @@ using System.Data;
 using Newtonsoft.Json;
 using System.Configuration;
 using Google.Protobuf.WellKnownTypes;
+using Swashbuckle.AspNetCore.SwaggerUI;
 
 namespace Sopra.Services
 {
@@ -157,14 +158,14 @@ namespace Sopra.Services
                             join c in _context.Users on a.CustomersID equals c.RefID
                             join d in _context.Customers on c.CustomersID equals d.RefID into customerJoin
                             from d in customerJoin.DefaultIfEmpty()
-                                //  join i in _context.Invoices on a.ID equals i.OrdersID into invoiceJoin
-                                //  from i in invoiceJoin.DefaultIfEmpty()
                             where a.IsDeleted == false
                             select new
                             {
                                 Order = a,
                                 Customer = d,
-                                //  Invoice = i
+                                FullInvoiced = _context.Invoices
+                                .Where(i => i.OrdersID == a.ID)
+                                .Sum(i => i.Netto) == a.Total
                             };
 
                 var dateBetween = "";
@@ -199,11 +200,11 @@ namespace Sopra.Services
                                 "customersid" => query.Where(x => x.Order.CustomersID.ToString().Equals(value)),
                                 "referenceno" => query.Where(x => x.Order.ReferenceNo.Contains(value)),
                                 "companyid" => query.Where(x => x.Order.CompaniesID.ToString().Equals(value)),
-                                // "isinvoice" => value == "0"
-                                //     ? query.Where(x => x.Invoice == null)
-                                //     : value == "1"
-                                //         ? query.Where(x => x.Invoice != null)
-                                //         : query,
+                                "isinvoice" => value == "0"
+                                    ? query.Where(x => x.FullInvoiced == false)
+                                    : value == "1"
+                                        ? query.Where(x => x.FullInvoiced != true)
+                                        : query,
                                 _ => query
                             };
                         }
