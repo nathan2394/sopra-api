@@ -188,7 +188,7 @@ namespace Sopra.Services
             return categoriesData;
         }
 
-        public async Task<(DataRowCollection dtc, string tipe, int total)> GetSearch(string param, int limit, int page, ProductKey productKey = null)
+        public async Task<(DataRowCollection dtc, string tipe, int total)> GetSearch(string param, int limit, int page)
         {
             // add dictionary
             Dictionary<string, string> dictionary = new Dictionary<string, string>();
@@ -388,7 +388,7 @@ namespace Sopra.Services
             //var result = Utility.SQLGetObjects(query, Utility.SQLDBConnection);
 
             Utility.ConnectSQL(Utility.SQL_Server, Utility.SQL_Database, Utility.SQL_UserID, Utility.SQL_Password);
-            var result = insertProductDetail(firstParam, type, productKey.ProductKeys);
+            var result = insertProductDetail(firstParam, type);
 
             if (result != null)
             {

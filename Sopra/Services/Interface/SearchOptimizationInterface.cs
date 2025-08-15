@@ -9,7 +9,7 @@ namespace Sopra.Services
     public interface SearchOptimizationInterface
     {
         Task<DataRowCollection> GetSearchFunctionOrTag(string param);
-        Task<(DataRowCollection dtc, string tipe, int total)> GetSearch(string param, int limit, int page, ProductKey productKey = null);
+        Task<(DataRowCollection dtc, string tipe, int total)> GetSearch(string param, int limit, int page);
         string[] RotateArray(string[] array, int positions);
         string ExplodeQueryString(string word);
         DataTable insertProductDetail(string param, string type, string productKey = "");
