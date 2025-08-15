@@ -33,7 +33,7 @@ namespace Sopra.Api.Controllers
 
         //[Authorize]
         [HttpPost("{param}")]
-        public async Task<IActionResult> GetSearch(string param = "", int limit = 0, int page = 0, int userid = 0, [FromBody] ProductKey productKey = null)
+        public async Task<IActionResult> GetSearch(string param = "", int limit = 0, int page = 0, int userid = 0)
         {
             try
             {
@@ -56,7 +56,7 @@ namespace Sopra.Api.Controllers
                     }
                 }
 
-                var (result, tipe, total) = await _service.GetSearch(param, limit, page, productKey);
+                var (result, tipe, total) = await _service.GetSearch(param, limit, page);
                 if (result != null)
                 {
                     List<Dictionary<string, object>> rowsList = new List<Dictionary<string, object>>();
