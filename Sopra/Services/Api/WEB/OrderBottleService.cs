@@ -475,15 +475,15 @@ namespace Sopra.Services
         {
             try
             {
-                var obj = await _context.Orders.FirstOrDefaultAsync
-                (
-                    x => x.CustomersID == customerID &&
-                    x.IsDeleted == false &&
-                    x.OrderStatus == "ACTIVE" &&
-                    x.Status == "INDUK" &&
-                    x.TransDate >= DateTime.UtcNow.AddDays(-30) &&
-                    x.CompaniesID == companyID
-                );
+                var obj = await _context.Orders
+                .Where(x => x.CustomersID == customerID &&
+                            x.IsDeleted == false &&
+                            x.OrderStatus == "ACTIVE" &&
+                            x.Status == "INDUK" &&
+                            x.TransDate >= DateTime.UtcNow.AddDays(-30) &&
+                            x.CompaniesID == companyID)
+                .OrderByDescending(x => x.ID)
+                .FirstOrDefaultAsync();
 
                 if (obj == null)
                 {
@@ -544,6 +544,7 @@ namespace Sopra.Services
                     TotalReguler = data.TotalReguler,
                     TotalMix = data.TotalMix,
                     OrderStatus = data.OrderStatus,
+                    Status = data.DiscStatus,
                     Username = data.CreatedBy,
                     Amount = data.Amount,
                     DPP = data.Dpp,

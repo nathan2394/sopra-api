@@ -52,16 +52,21 @@ namespace Sopra.Services
                 throw new ArgumentException("Customer must not be empty.");
             }
 
+            // ORDER
+            if (data.OrdersID <= 0)
+            {
+                throw new ArgumentException("Order ID must not be empty.");
+            }
+
             // INVOICE NETTO
             if (data.Netto <= 0)
             {
                 throw new ArgumentException("Invoice Netto must not be empty.");
             }
 
-            // DUE DATE
-            if (data.DueDate < Utility.getCurrentTimestamps())
+            if (!data.PaymentMethod.HasValue || data.PaymentMethod <= 0)
             {
-                throw new ArgumentException("Due Date must be greater than today.");
+                throw new ArgumentException("Payment Method must not be empty.");
             }
 
             // DEPOSIT
@@ -80,6 +85,21 @@ namespace Sopra.Services
                 // {
                 //     throw new ArgumentException("Deposit balance is lower then the existing Deposit Amount.");
                 // }
+            }
+            else
+            {
+                // DUE DATE
+                if (data.DueDate < Utility.getCurrentTimestamps() || !data.DueDate.HasValue)
+                {
+                    if (data.DueDate <= Utility.getCurrentTimestamps())
+                    {
+                        throw new ArgumentException("Due Date must be greater than or equal to current time.");
+                    }
+                    else if (!data.DueDate.HasValue)
+                    {
+                        throw new ArgumentException("Due Date must not be empty.");
+                    }
+                }
             }
         }
 
