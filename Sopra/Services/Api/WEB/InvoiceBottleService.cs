@@ -89,16 +89,17 @@ namespace Sopra.Services
             else
             {
                 // DUE DATE
-                if (data.DueDate < Utility.getCurrentTimestamps() || !data.DueDate.HasValue)
+                if (data.DueDate.HasValue)
                 {
-                    if (data.DueDate <= Utility.getCurrentTimestamps())
+                    var tempDueDate = Utility.currentTimezone(data.DueDate ?? DateTime.UtcNow);
+                    if (tempDueDate <= Utility.getCurrentTimestamps())
                     {
                         throw new ArgumentException("Due Date must be greater than or equal to current time.");
                     }
-                    else if (!data.DueDate.HasValue)
-                    {
-                        throw new ArgumentException("Due Date must not be empty.");
-                    }
+                }
+                else
+                {
+                    throw new ArgumentException("Due Date must not be empty.");
                 }
             }
         }
@@ -354,7 +355,7 @@ namespace Sopra.Services
                 var data = from i in _context.Invoices
                     join p in _context.Payments.Where(p => p.Status != "CANCEL") on i.ID equals p.InvoicesID into paymentJoin
                     from p in paymentJoin.DefaultIfEmpty()
-                    where i.OrdersID == id && i.IsDeleted == false
+                    where i.OrdersID == id && i.IsDeleted == false && i.Status != "CANCEL"
                     select new { Invoice = i, Payment = p };
 
                 var resData = data.Select(x => new
@@ -450,7 +451,7 @@ namespace Sopra.Services
                     Type = data.Type,
                     Status = data.Status,
                     InvoiceNo = newInvoiceNo,
-                    DueDate = data.DueDate,
+                    DueDate = Utility.currentTimezone(data.DueDate ?? DateTime.UtcNow),
                     FlagInv = data.FlagInv,
                     VANum = vaNum,
                     CustNum = custNum,
@@ -536,7 +537,7 @@ namespace Sopra.Services
                         getInvoice.Refund = data.Refund;
                         getInvoice.Netto = data.Netto;
 
-                        getInvoice.DueDate = data.DueDate;
+                        getInvoice.DueDate = Utility.currentTimezone(data.DueDate ?? DateTime.UtcNow);
 
                         getInvoice.FlagInv = data.FlagInv;
 
