@@ -68,7 +68,7 @@ namespace Sopra.Services
                 .FirstOrDefaultAsync();
 
             var nextNumber = lastId + 1;
-            var docType = "PMT";
+            var docType = "PAY";
 
             return $"{company}/{docType}/N/{currentYearString}/{nextNumber:D5}";
         }
@@ -290,12 +290,14 @@ namespace Sopra.Services
                 {
                     RefID = data.RefID,
                     InvoicesID = data.InvoicesID,
-                    TransDate = data.TransDate,
                     CustomersID = data.CustomersID,
                     CompaniesID = data.CompanyID,
                     Username = data.CreatedBy,
                     Netto = data.Netto,
-                    BankTime = data.BankTime,
+
+                    TransDate = Utility.currentTimezone(data.TransDate ?? DateTime.UtcNow),
+                    BankTime = Utility.currentTimezone(data.BankTime ?? DateTime.UtcNow),
+                    
                     BankRef = data.BankRef,
                     AmtReceive = data.AmtReceive,
                     Type = data.Type,
@@ -392,7 +394,7 @@ namespace Sopra.Services
 
                 if (getPayment != null)
                 {
-                    getPayment.TransDate = data.TransDate;
+                    getPayment.TransDate = Utility.currentTimezone(data.TransDate ?? DateTime.UtcNow);
 
                     getPayment.DateUp = Utility.getCurrentTimestamps();
                     getPayment.UserUp = userId;

@@ -57,8 +57,12 @@ namespace Sopra.Helpers
         public static DateTime getCurrentTimestamps()
         {
             DateTime utcNow = DateTime.UtcNow; // Get the current UTC time
+            return currentTimezone(utcNow);
+        }
+        public static DateTime currentTimezone(DateTime value)
+        {   
             TimeZoneInfo gmtPlus7 = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"); // Time zone for GMT+7
-            DateTime gmtPlus7Time = TimeZoneInfo.ConvertTimeFromUtc(utcNow, gmtPlus7); // Convert UTC to GMT+7
+            DateTime gmtPlus7Time = TimeZoneInfo.ConvertTimeFromUtc(value, gmtPlus7); // Convert UTC to GMT+7
             return gmtPlus7Time;
         }
         public static IConfiguration GetConfig()

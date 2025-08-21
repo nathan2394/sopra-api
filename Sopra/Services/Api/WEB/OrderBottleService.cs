@@ -23,6 +23,7 @@ namespace Sopra.Services
         string filter, string date);
         Task<OrderBottleDto> GetByIdAsync(long id);
         Task<object> CheckIndukAnakAsync(long customerID, long companyID);
+        Task<object> CheckDealerAsync(long customerID);
         Task<Order> CreateAsync(OrderBottleDto data, int userId);
         Task<OrderBottleDto> EditAsync(OrderBottleDto data, int userId);
         Task<bool> DeleteAsync(long id, int reason, int userId);
@@ -164,8 +165,8 @@ namespace Sopra.Services
                                 Order = a,
                                 Customer = d,
                                 FullInvoiced = _context.Invoices
-                                .Where(i => i.OrdersID == a.ID)
-                                .Sum(i => i.Netto) == a.Total
+                                .Where(i => i.OrdersID == a.ID && i.Status != "CANCEL")
+                                .Sum(i => i.Netto) >= a.Total
                             };
 
                 var dateBetween = "";
@@ -200,7 +201,7 @@ namespace Sopra.Services
                                 "customersid" => query.Where(x => x.Order.CustomersID.ToString().Equals(value)),
                                 "referenceno" => query.Where(x => x.Order.ReferenceNo.Contains(value)),
                                 "companyid" => query.Where(x => x.Order.CompaniesID.ToString().Equals(value)),
-                                "isinvoice" => value == "0"
+                                "isinvoiced" => value == "0"
                                     ? query.Where(x => x.FullInvoiced == false)
                                     : value == "1"
                                         ? query.Where(x => x.FullInvoiced != true)
@@ -456,7 +457,7 @@ namespace Sopra.Services
                     Sfee = Math.Floor(data.Sfee ?? 0),
                     Dealer = data.DealerTier,
                     RegulerItems = regulerItems,
-                    MixItems = mixItems
+                    MixItems = mixItems,
                 };
 
                 return resData;
@@ -503,6 +504,63 @@ namespace Sopra.Services
                     {
                         Status = true,
                         Disc1 = obj.Disc1
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                throw;
+            }
+        }
+
+        public async Task<object> CheckDealerAsync(long customerID)
+        {
+            try
+            {
+                var currentTime = Utility.getCurrentTimestamps();
+
+                var obj = await _context.UserDealers
+                .Where(ud => ud.UserId == customerID &&
+                            ud.IsDeleted == false &&
+                            ud.StartDate <= currentTime &&
+                            ud.EndDate >= currentTime)
+                .Join(_context.Dealers,
+                    ud => ud.DealerId,
+                    d => d.RefID,
+                    (ud, d) => new
+                    {
+                        UserDealerId = ud.ID,
+                        DealerName = d.Tier,
+                        DiscBottle = d.DiscBottle,
+                        DiscThermo = d.DiscThermo
+                    })
+                .OrderByDescending(x => x.UserDealerId)
+                .FirstOrDefaultAsync();
+
+                if (obj == null)
+                {
+                    return new
+                    {
+                        data = new
+                        {
+                            Status = false,
+                            Dealer = "Regular",
+                            Disc = 0
+                        }
+                    };
+                }
+
+                return new
+                {
+                    data = new
+                    {
+                        Status = true,
+                        Dealer = obj.DealerName,
+                        Disc = obj.DiscBottle
                     }
                 };
             }
