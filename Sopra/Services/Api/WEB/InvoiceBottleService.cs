@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Authorization.Infrastructure;
 using System.Data.Common;
 using Microsoft.VisualBasic;
 using Swashbuckle.AspNetCore.SwaggerUI;
+using System.Text.RegularExpressions;
 
 namespace Sopra.Services
 {
@@ -425,8 +426,18 @@ namespace Sopra.Services
                 {
                     if (getCustomer != null && getCustomer.custNum != null)
                     {
-                        var vaCode = data.CompanyID == 1 ? "14767" : "13438";
-                        vaNum = $"{vaCode}{getCustomer.custNum}";
+                        var vaCode = data.CompanyID == 1 ? "13438" : "14767";
+
+                        if (!string.IsNullOrEmpty(getCustomer.custNum))
+                        {
+                            var tempCustNum = getCustomer.custNum;
+                            tempCustNum = Regex.Replace(tempCustNum, "^(62|0)", "");
+                            vaNum = $"{vaCode}{tempCustNum}";
+                        }
+                        else
+                        {
+                            vaNum = "Phone number is empty";
+                        }
                     }
                 }
                 else
@@ -531,27 +542,13 @@ namespace Sopra.Services
 
                 if (getInvoice != null)
                 {
-                    if (getInvoice.FlagInv != data.FlagInv)
-                    {
-                        getInvoice.Bill = data.Bill;
-                        getInvoice.Refund = data.Refund;
-                        getInvoice.Netto = data.Netto;
+                    getInvoice.Bill = data.Bill;
+                    getInvoice.Refund = data.Refund;
+                    getInvoice.Netto = data.Netto;
 
-                        getInvoice.DueDate = Utility.currentTimezone(data.DueDate ?? DateTime.UtcNow);
+                    getInvoice.DueDate = Utility.currentTimezone(data.DueDate ?? DateTime.UtcNow);
 
-                        getInvoice.FlagInv = data.FlagInv;
-
-                        if (data.FlagInv == 1)
-                        {
-                            // Notify Request Payment has been activated
-                            // Invoice was request to be paid in {Utility.getCurrentTimestamps()} with due {getInvoice.DueDate}.
-                        }
-                        else
-                        {
-                            // Notify Request Payment has been deactivated
-                            // Invoice to be hold from request payment.
-                        }
-                    }
+                    getInvoice.FlagInv = data.FlagInv;
 
                     if (getInvoice.PaymentMethod != data.PaymentMethod)
                     {
