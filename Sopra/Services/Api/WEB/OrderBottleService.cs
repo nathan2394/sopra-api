@@ -22,7 +22,7 @@ namespace Sopra.Services
         Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
         string filter, string date);
         Task<OrderBottleDto> GetByIdAsync(long id);
-        Task<object> CheckIndukAnakAsync(long customerID, long companyID);
+        Task<object> CheckIndukAnakAsync(long customerID);
         Task<object> CheckDealerAsync(long customerID);
         Task<Order> CreateAsync(OrderBottleDto data, int userId);
         Task<OrderBottleDto> EditAsync(OrderBottleDto data, int userId);
@@ -472,7 +472,7 @@ namespace Sopra.Services
             }
         }
 
-        public async Task<object> CheckIndukAnakAsync(long customerID, long companyID)
+        public async Task<object> CheckIndukAnakAsync(long customerID)
         {
             try
             {
@@ -481,8 +481,7 @@ namespace Sopra.Services
                             x.IsDeleted == false &&
                             x.OrderStatus == "ACTIVE" &&
                             x.Status == "INDUK" &&
-                            x.TransDate >= DateTime.UtcNow.AddDays(-30) &&
-                            x.CompaniesID == companyID)
+                            x.TransDate >= DateTime.UtcNow.AddDays(-30))
                 .OrderByDescending(x => x.ID)
                 .FirstOrDefaultAsync();
 

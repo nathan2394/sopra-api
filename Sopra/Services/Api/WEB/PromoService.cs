@@ -46,7 +46,7 @@ namespace Sopra.Services
                 if (result != null && result.Rows.Count > 0)
                 {
                     DataView dataView = result.DefaultView;
-                    dataView.Sort = "PromoName ASC";
+                    dataView.Sort = "PromoID ASC";
 
                     result = dataView.ToTable();
                 }
@@ -85,7 +85,8 @@ namespace Sopra.Services
                             {
                                 Qty1 = firstItemInGroup["Qty1"] != null ? Convert.ToInt64(firstItemInGroup["Qty1"]) : (long?)null,
                                 Qty2 = firstItemInGroup["Qty2"] != null ? Convert.ToInt64(firstItemInGroup["Qty2"]) : (long?)null,
-                                Qty3 = firstItemInGroup["Qty3"] != null ? Convert.ToInt64(firstItemInGroup["Qty3"]) : (long?)null
+                                Qty3 = firstItemInGroup["Qty3"] != null ? Convert.ToInt64(firstItemInGroup["Qty3"]) : (long?)null,
+                                Negotiable = firstItemInGroup["Negotiable"] != null ? Convert.ToInt64(firstItemInGroup["Negotiable"]) : (long?)null
                             }
                         };
 

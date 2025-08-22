@@ -79,11 +79,11 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet("CheckStatus")]
-        public async Task<IActionResult> CheckIndukAnak(long customerID, long companyID)
+        public async Task<IActionResult> CheckIndukAnak(long customerID)
         {
             try
             {
-                var result = await _service.CheckIndukAnakAsync(customerID, companyID);
+                var result = await _service.CheckIndukAnakAsync(customerID);
                 return Ok(result);
             }
             catch (Exception ex)

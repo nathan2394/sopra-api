@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net.Security;
 
 namespace Sopra.Entities
 {
@@ -34,6 +35,7 @@ namespace Sopra.Entities
         public long? Qty1 { get; set; }
         public long? Qty2 { get; set; }
         public long? Qty3 { get; set; }
+        public long? Negotiable { get; set; }
 
         public static implicit operator List<object>(Quantities v)
         {

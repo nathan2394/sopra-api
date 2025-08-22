@@ -47,6 +47,12 @@ namespace Sopra.Services
                 throw new ArgumentException("Customer must not be empty.");
             }
 
+            // INVOICE
+            if (data.InvoicesID <= 0)
+            {
+                throw new ArgumentException("Invoice ID must not be empty.");
+            }
+
             // PAYMENT NETTO
             if (data.AmtReceive <= 0 || data.Netto <= 0)
             {
@@ -297,7 +303,7 @@ namespace Sopra.Services
 
                     TransDate = Utility.currentTimezone(data.TransDate ?? DateTime.UtcNow),
                     BankTime = Utility.currentTimezone(data.BankTime ?? DateTime.UtcNow),
-                    
+
                     BankRef = data.BankRef,
                     AmtReceive = data.AmtReceive,
                     Type = data.Type,
