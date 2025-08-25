@@ -78,6 +78,28 @@ namespace Sopra.Api.Controllers
             }
         }
 
+        [HttpGet("CheckVoucher")]
+        public async Task<IActionResult> CheckVoucher(string voucher, long amount)
+        {
+            try
+            {
+                var result = await _service.CheckVoucherAsync(voucher, amount);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "OrderBottleController: Check Voucher");
+                return BadRequest(new { message });
+            }
+        }
+
         [HttpGet("CheckStatus")]
         public async Task<IActionResult> CheckIndukAnak(long customerID)
         {
@@ -117,7 +139,7 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "OrderBottleController: Check Induk Anak by Customer ID");
+                Trace.WriteLine(message, "OrderBottleController: Check Dealer by Customer ID");
                 return BadRequest(new { message });
             }
         }

@@ -44,5 +44,31 @@ namespace Sopra.Api.Controllers
                 return BadRequest(new { message });
             }
         }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(int id)
+        {
+            try
+            {
+                var result = await _service.GetByIdAsync(id);
+                if (result == null)
+                    return BadRequest(new { message = "Invalid ID" });
+
+                var response = new Response<Customer>(result);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "CustomersController: Get by ID");
+                return BadRequest(new { message });
+            }
+        }
     }
 }
