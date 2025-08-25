@@ -21,6 +21,7 @@ namespace Sopra.Services
     {
         Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
         string filter, string date);
+        Task<Customer> GetByIdAsync(long id);
     }
 
     public class CustomersService : CustomersInterface
@@ -138,6 +139,30 @@ namespace Sopra.Services
                 .ToList();
 
                 return new ListResponse<dynamic>(resData, total, page);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                throw;
+            }
+        }
+
+        public async Task<Customer> GetByIdAsync(long id)
+        {
+            try
+            {
+                return await _context.Customers
+                .AsNoTracking()
+                .Join(_context.Users,
+                    customer => customer.RefID,
+                    user => user.CustomersID,
+                    (customer, user) => new { Customer = customer, User = user })
+                .Where(x => x.User.RefID == id && x.Customer.IsDeleted == false)
+                .Select(x => x.Customer)
+                .FirstOrDefaultAsync();
             }
             catch (Exception ex)
             {

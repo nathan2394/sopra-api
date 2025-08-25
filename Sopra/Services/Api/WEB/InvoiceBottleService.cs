@@ -299,11 +299,16 @@ namespace Sopra.Services
             {
                 var data = await _context.Invoices
                 .Where(x => x.ID == id && x.IsDeleted == false)
+                .GroupJoin(_context.Payments.Where(p => p.Status != "CANCEL"),
+                        invoice => invoice.ID,
+                        payment => payment.InvoicesID,
+                        (invoice, payments) => new { invoice, payment = payments.FirstOrDefault() })
                 .Select(x => new
                 {
-                    Invoice = x,
+                    Invoice = x.invoice,
+                    Payment = x.payment,
                     CustomerName = _context.Users
-                        .Where(u => u.RefID == x.CustomersID)
+                        .Where(u => u.RefID == x.invoice.CustomersID)
                         .Join(_context.Customers, u => u.CustomersID, c => c.RefID, (u, c) => c.Name)
                         .FirstOrDefault() ?? ""
                 })
@@ -332,7 +337,13 @@ namespace Sopra.Services
                     DueDate = data.Invoice.DueDate,
 
                     HandleBy = data.Invoice.Username,
-                    Status = data.Invoice.Status
+                    Status = data.Invoice.Status,
+                    
+                    Progress = data.Invoice.Status == "ACTIVE"
+                        ? (data.Payment == null
+                        ? (data.Invoice.FlagInv == 1 ? "requested" : "invoiced")
+                        : "paid")
+                        : "cancel"
                 };
 
                 return resData;

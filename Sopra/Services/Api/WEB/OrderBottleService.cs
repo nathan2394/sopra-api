@@ -14,6 +14,8 @@ using Newtonsoft.Json;
 using System.Configuration;
 using Google.Protobuf.WellKnownTypes;
 using Swashbuckle.AspNetCore.SwaggerUI;
+using Google.Protobuf.Reflection;
+using Microsoft.VisualBasic;
 
 namespace Sopra.Services
 {
@@ -22,6 +24,7 @@ namespace Sopra.Services
         Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
         string filter, string date);
         Task<OrderBottleDto> GetByIdAsync(long id);
+        Task<Voucher> CheckVoucherAsync(string voucher, long amount);
         Task<object> CheckIndukAnakAsync(long customerID);
         Task<object> CheckDealerAsync(long customerID);
         Task<Order> CreateAsync(OrderBottleDto data, int userId);
@@ -461,6 +464,34 @@ namespace Sopra.Services
                 };
 
                 return resData;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                throw;
+            }
+        }
+
+        public async Task<Voucher> CheckVoucherAsync(string voucher, long amount)
+        {
+            try
+            {
+                var obj = await _context.Vouchers
+                    .FirstOrDefaultAsync(x => x.VoucherNo == voucher && x.IsDeleted == false);
+
+                if (obj == null) throw new ArgumentException("Voucher is either not found or expired.");
+
+                var orderUsage = await _context.Orders
+                    .Where(x => x.VouchersID == voucher && x.IsDeleted == false && x.OrderStatus != "CANCEL")
+                    .CountAsync();
+
+                if (orderUsage >= obj.VoucherUsage) throw new ArgumentException("Voucher usage exceeds the specified limit.");
+                if (amount < obj.MinOrder) throw new ArgumentException($"Order amount must be greater than {obj.MinOrder:N0}.");
+
+                return obj;
             }
             catch (Exception ex)
             {
