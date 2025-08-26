@@ -170,6 +170,16 @@ namespace Sopra.Services
                                 FullInvoiced = _context.Invoices
                                 .Where(i => i.OrdersID == a.ID && i.Status != "CANCEL")
                                 .Sum(i => i.Netto) >= a.Total
+                                // Progress =
+                                // !_context.Invoices.Any(i => i.OrdersID == a.ID)
+                                //     ? "order"
+                                //     : _context.Invoices.Any(i => i.OrdersID == a.ID && i.Status == "CANCEL")
+                                //         ? "cancel"
+                                //         :_context.Invoices.Where(i => i.OrdersID == a.ID && i.Status == "ACTIVE").All(i => _context.Payments.Any(p => p.InvoicesID == i.ID))
+                                //             ? "paid"
+                                //             :_context.Invoices.Any(i => i.OrdersID == a.ID && i.Status == "ACTIVE" && i.FlagInv == 1)
+                                //                 ? "requested"
+                                //                 : "invoiced"
                             };
 
                 var dateBetween = "";
@@ -508,11 +518,19 @@ namespace Sopra.Services
             try
             {
                 var obj = await _context.Orders
-                .Where(x => x.CustomersID == customerID &&
-                            x.IsDeleted == false &&
-                            x.OrderStatus == "ACTIVE" &&
-                            x.Status == "INDUK" &&
-                            x.TransDate >= DateTime.UtcNow.AddDays(-30))
+                .Where(o => o.CustomersID == customerID &&
+                            o.IsDeleted == false &&
+                            o.OrderStatus == "ACTIVE" &&
+                            o.Status == "INDUK" &&
+                            o.TransDate >= DateTime.UtcNow.AddDays(-30))
+                .Where(o => _context.Invoices.Any(i => i.OrdersID == o.ID) &&
+                            _context.Invoices.Where(i => i.OrdersID == o.ID).Count() ==
+                            _context.Invoices.Where(i => i.OrdersID == o.ID)
+                                .Join(_context.Payments,
+                                i => i.ID, p => p.InvoicesID,
+                                (i, p) => i.ID)
+                                .Distinct()
+                                .Count())
                 .OrderByDescending(x => x.ID)
                 .FirstOrDefaultAsync();
 

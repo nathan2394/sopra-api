@@ -272,10 +272,10 @@ namespace Sopra.Services
                         Status = x.Invoice.Status,
 
                         Progress = x.Invoice.Status == "ACTIVE"
-                        ? (x.Payment == null
-                        ? (x.Invoice.FlagInv == 1 ? "requested" : "invoiced")
-                        : "paid")
-                        : "cancel"
+                            ? (x.Payment == null
+                            ? (x.Invoice.FlagInv == 1 ? "requested" : "invoiced")
+                            : "paid")
+                            : "cancel"
                     };
                 })
                 .Distinct()
@@ -389,10 +389,10 @@ namespace Sopra.Services
                     Status = x.Invoice.Status,
 
                     Progress = x.Invoice.Status == "ACTIVE"
-                    ? (x.Payment == null
-                    ? (x.Invoice.FlagInv == 1 ? "requested" : "invoiced")
-                    : "paid")
-                    : "cancel"
+                        ? (x.Payment == null
+                        ? (x.Invoice.FlagInv == 1 ? "requested" : "invoiced")
+                        : "paid")
+                        : "cancel"
                 }).ToList();
 
                 return new ListResponse<dynamic>(resData, resData?.Count ?? 0, 0);
