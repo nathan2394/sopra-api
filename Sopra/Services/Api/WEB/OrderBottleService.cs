@@ -169,17 +169,18 @@ namespace Sopra.Services
                                 Customer = d,
                                 FullInvoiced = _context.Invoices
                                 .Where(i => i.OrdersID == a.ID && i.Status != "CANCEL")
-                                .Sum(i => i.Netto) >= a.Total
-                                // Progress =
-                                // !_context.Invoices.Any(i => i.OrdersID == a.ID)
-                                //     ? "order"
-                                //     : _context.Invoices.Any(i => i.OrdersID == a.ID && i.Status == "CANCEL")
-                                //         ? "cancel"
-                                //         :_context.Invoices.Where(i => i.OrdersID == a.ID && i.Status == "ACTIVE").All(i => _context.Payments.Any(p => p.InvoicesID == i.ID))
-                                //             ? "paid"
-                                //             :_context.Invoices.Any(i => i.OrdersID == a.ID && i.Status == "ACTIVE" && i.FlagInv == 1)
-                                //                 ? "requested"
-                                //                 : "invoiced"
+                                .Sum(i => i.Netto) >= a.Total,
+                                Progress = a.OrderStatus == "CANCEL"
+                                    ? "cancel"
+                                    : !_context.Invoices.Any(i => i.OrdersID == a.ID)
+                                        ? "order"
+                                        : _context.Invoices.Where(i => i.OrdersID == a.ID && i.Status == "ACTIVE").All(i => _context.Payments.Any(p => p.InvoicesID == i.ID))
+                                            ? "paid"
+                                            : _context.Invoices.Where(i => i.OrdersID == a.ID && i.Status == "ACTIVE").Any(i => _context.Payments.Any(p => p.InvoicesID == i.ID))
+                                                ? "partially paid"
+                                                : _context.Invoices.Any(i => i.OrdersID == a.ID && i.Status == "ACTIVE" && i.FlagInv == 1)
+                                                    ? "requested"
+                                                    : "invoiced"
                             };
 
                 var dateBetween = "";
@@ -190,6 +191,7 @@ namespace Sopra.Services
                         || x.Order.OrderNo.Contains(search)
                         || x.Order.TransDate.ToString().Contains(search)
                         || x.Order.CustomersID.ToString().Equals(search)
+                        || x.Customer.Name.ToString().Equals(search)
                         || x.Order.ReferenceNo.Contains(search)
                         || x.Order.OrderDetail.Any(od => od.PromosID.ToString().Equals(search))
                         );
@@ -318,6 +320,8 @@ namespace Sopra.Services
 
                         HandleBy = x.Order.Username,
                         Status = x.Order.OrderStatus,
+
+                        Progress = x.Progress
                     };
                 })
                 .ToList();
@@ -489,8 +493,9 @@ namespace Sopra.Services
         {
             try
             {
+                var Now = Utility.getCurrentTimestamps();
                 var obj = await _context.Vouchers
-                    .FirstOrDefaultAsync(x => x.VoucherNo == voucher && x.IsDeleted == false);
+                    .FirstOrDefaultAsync(x => x.VoucherNo == voucher && Now < x.ExpiredDate && x.IsDeleted == false);
 
                 if (obj == null) throw new ArgumentException("Voucher is either not found or expired.");
 
