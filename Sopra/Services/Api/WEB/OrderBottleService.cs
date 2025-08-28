@@ -177,7 +177,7 @@ namespace Sopra.Services
                                         : _context.Invoices.Where(i => i.OrdersID == a.ID && i.Status == "ACTIVE").All(i => _context.Payments.Any(p => p.InvoicesID == i.ID))
                                             ? "paid"
                                             : _context.Invoices.Where(i => i.OrdersID == a.ID && i.Status == "ACTIVE").Any(i => _context.Payments.Any(p => p.InvoicesID == i.ID))
-                                                ? "partially paid"
+                                                ? "partially_paid"
                                                 : _context.Invoices.Any(i => i.OrdersID == a.ID && i.Status == "ACTIVE" && i.FlagInv == 1)
                                                     ? "requested"
                                                     : "invoiced"
@@ -452,29 +452,48 @@ namespace Sopra.Services
                     ID = data.ID,
                     RefID = data.RefID,
                     VoucherNo = data.OrderNo,
-                    TransDate = data.TransDate,
                     ReferenceNo = data.ReferenceNo,
+                    TransDate = data.TransDate,
+
                     CustomerId = data.CustomersID ?? 0,
                     CompanyId = data.CompaniesID ?? 1,
+
+                    Dealer = data.DealerTier,
                     VouchersID = data.VouchersID,
                     Disc2 = data.Disc2Value,
                     Disc2Value = data.Disc2Value,
-                    CreatedBy = data.Username,
-                    OrderStatus = data.OrderStatus,
                     DiscStatus = data.Status,
+                    DiscPercentage = data.Disc1 ?? 0,
+                    DiscAmount = Math.Floor(data.Disc1Value ?? 0),
+
+                    CreatedBy = data.Username,
+
                     Amount = data.Amount ?? 0,
                     TotalReguler = Math.Floor(data.TotalReguler ?? 0),
                     TotalMix = data.TotalMix ?? 0,
-                    DiscPercentage = data.Disc1 ?? 0,
-                    DiscAmount = Math.Floor(data.Disc1Value ?? 0),
+                    Sfee = Math.Floor(data.Sfee ?? 0),
+
                     Dpp = Math.Floor(data.DPP ?? 0),
                     Tax = data.TAX ?? 0,
                     TaxValue = Math.Floor(data.TaxValue ?? 0),
+
                     Netto = Math.Floor(data.Total ?? 0),
-                    Sfee = Math.Floor(data.Sfee ?? 0),
-                    Dealer = data.DealerTier,
+
+                    OrderStatus = data.OrderStatus,
+                    Progress = data.OrderStatus == "CANCEL" 
+                        ? "cancel"
+                        : !_context.Invoices.Any(i => i.OrdersID == data.ID)
+                            ? "order"
+                            : _context.Invoices.Where(i => i.OrdersID == data.ID && i.Status == "ACTIVE").All(i => _context.Payments.Any(p => p.InvoicesID == i.ID))
+                                ? "paid"
+                                : _context.Invoices.Where(i => i.OrdersID == data.ID && i.Status == "ACTIVE").Any(i => _context.Payments.Any(p => p.InvoicesID == i.ID))
+                                    ? "partially_paid"
+                                    : _context.Invoices.Any(i => i.OrdersID == data.ID && i.Status == "ACTIVE" && i.FlagInv == 1)
+                                        ? "requested"
+                                        : "invoiced",
+
                     RegulerItems = regulerItems,
-                    MixItems = mixItems,
+                    MixItems = mixItems
                 };
 
                 return resData;
