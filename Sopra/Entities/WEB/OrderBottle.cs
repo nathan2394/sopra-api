@@ -30,6 +30,7 @@ namespace Sopra.Entities
         public string Dealer { get; set; }
         public string Type { get; set; }
         public decimal? Sfee { get; set; }
+        public string? Progress { get; set; }
         public List<RegulerItem> RegulerItems { get; set; }
         public List<MixItem> MixItems { get; set; }
         public List<InvoiceItem> InvoiceItems { get; set; }
