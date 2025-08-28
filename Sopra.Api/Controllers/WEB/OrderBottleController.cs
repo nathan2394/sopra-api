@@ -78,6 +78,28 @@ namespace Sopra.Api.Controllers
             }
         }
 
+        [HttpGet("Attachment/{key}")]
+        public async Task<IActionResult> GetByKey(string key)
+        {
+            try
+            {
+                var result = await _service.GetByKeyAsync(key);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "OrderBottleController: Get by Key");
+                return BadRequest(new { message });
+            }
+        }
+
         [HttpGet("CheckVoucher")]
         public async Task<IActionResult> CheckVoucher(string voucher, long amount)
         {
