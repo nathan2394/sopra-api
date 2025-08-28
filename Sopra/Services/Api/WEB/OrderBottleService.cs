@@ -24,6 +24,7 @@ namespace Sopra.Services
         Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
         string filter, string date);
         Task<OrderBottleDto> GetByIdAsync(long id);
+        Task<OrderBottleDto> GetByKeyAsync(string key);
         Task<Voucher> CheckVoucherAsync(string voucher, long amount);
         Task<object> CheckIndukAnakAsync(long customerID);
         Task<object> CheckDealerAsync(long customerID);
@@ -124,12 +125,166 @@ namespace Sopra.Services
 
                     totalInvoiceAmount += item.Netto ?? 0;
                 }
-                
+
                 if (totalInvoiceAmount != totalOrderAmount)
                 {
                     throw new ArgumentException($"Invoice amount should be equal to order amount.");
                 }
             }
+        }
+
+        private async Task<OrderBottleDto> getOrderDetails(Order data)
+        {
+            var allRegulerItems = await _context.OrderDetails
+                .Where(x => x.OrdersID == data.ID && x.Type == "Reguler")
+                .ToListAsync();
+
+            var allMixItems = await _context.OrderDetails
+                .Where(x => x.OrdersID == data.ID && x.Type == "Mix")
+                .ToListAsync();
+
+            var productItems = await _context.ProductDetails2
+                .Where(p => p.Type == "bottle" || p.Type == "closure")
+                .ToListAsync();
+
+            var regulerItems = allRegulerItems
+                .Where(x => x.ObjectType == "bottle")
+                .Select(y =>
+                {
+                    var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
+
+                    var closureItems = allRegulerItems
+                        .Where(c => c.ObjectType == "closures" && c.ParentID == y.ObjectID)
+                        .Join(productItems.Where(p => p.Type == "closure"),
+                            c => c.ObjectID,
+                            p => p.RefID,
+                            (c, p) => new ClosureItem
+                            {
+                                Id = c.ID,
+                                WmsCode = p.WmsCode,
+                                ProductsId = c.ObjectID,
+                                Name = p.Name,
+                                Qty = c.Qty,
+                                QtyBox = c.QtyBox,
+                                Price = c.ProductPrice,
+                                Amount = c.Amount
+                            }).ToList();
+
+                    return new RegulerItem
+                    {
+                        Id = y.ID,
+                        ProductsId = y.ObjectID,
+                        WmsCode = currentBottle?.WmsCode,
+                        Name = currentBottle?.Name,
+                        Qty = y.Qty,
+                        QtyBox = y.QtyBox,
+                        Price = y.ProductPrice,
+                        Amount = y.Amount,
+                        Notes = y.Note,
+                        ClosureItems = closureItems
+                    };
+                }).ToList();
+
+            var mixItems = allMixItems
+                .Where(x => x.ObjectType == "bottle")
+                .Select(y =>
+                {
+                    var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
+
+                    var closureItems = allMixItems
+                        .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
+                        .Join(productItems.Where(p => p.Type == "closure"),
+                            c => c.ObjectID,
+                            p => p.RefID,
+                            (c, p) => new ClosureItem
+                            {
+                                Id = c.ID,
+                                WmsCode = p.WmsCode,
+                                ProductsId = c.ObjectID,
+                                Name = p.Name,
+                                Qty = c.Qty,
+                                QtyBox = c.QtyBox,
+                                Price = c.ProductPrice,
+                                Amount = c.Amount
+                            }).ToList();
+
+                    return new MixItem
+                    {
+                        Id = y.ID,
+                        ProductsId = y.ObjectID,
+                        PromoId = y.PromosID,
+                        WmsCode = currentBottle?.WmsCode,
+                        Name = currentBottle?.Name,
+                        Qty = y.Qty,
+                        QtyBox = y.QtyBox,
+                        Price = y.ProductPrice,
+                        Amount = y.Amount,
+                        Notes = y.Note,
+                        ApprovalStatus = y.ApprovalStatus,
+                        ClosureItems = closureItems
+                    };
+                }).ToList();
+
+            if (data.Total == null)
+            {
+                var taxValue = MathF.Floor((float)(data.TAX ?? 0));
+                var dpp = MathF.Floor((float)(data.DPP ?? 0));
+                var netto = dpp + taxValue;
+
+                data.TaxValue = (decimal)taxValue;
+                data.Total = (decimal)netto;
+            }
+
+            var resData = new OrderBottleDto
+            {
+                ID = data.ID,
+                RefID = data.RefID,
+                VoucherNo = data.OrderNo,
+                ReferenceNo = data.ReferenceNo,
+                TransDate = data.TransDate,
+
+                CustomerId = data.CustomersID ?? 0,
+                CompanyId = data.CompaniesID ?? 1,
+
+                Dealer = data.DealerTier,
+                VouchersID = data.VouchersID,
+                Disc2 = data.Disc2Value,
+                Disc2Value = data.Disc2Value,
+                DiscStatus = data.Status,
+                DiscPercentage = data.Disc1 ?? 0,
+                DiscAmount = Math.Floor(data.Disc1Value ?? 0),
+
+                CreatedBy = data.Username,
+
+                Amount = data.Amount ?? 0,
+                TotalReguler = Math.Floor(data.TotalReguler ?? 0),
+                TotalMix = data.TotalMix ?? 0,
+                Sfee = Math.Floor(data.Sfee ?? 0),
+
+                Dpp = Math.Floor(data.DPP ?? 0),
+                Tax = data.TAX ?? 0,
+                TaxValue = Math.Floor(data.TaxValue ?? 0),
+
+                Netto = Math.Floor(data.Total ?? 0),
+
+                OrderStatus = data.OrderStatus,
+                Progress = data.OrderStatus == "CANCEL" 
+                    ? "cancel"
+                    : !_context.Invoices.Any(i => i.OrdersID == data.ID && i.Status == "ACTIVE")
+                        ? "order"
+                        : _context.Invoices.Where(i => i.OrdersID == data.ID && i.Status == "ACTIVE").All(i => _context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
+                            ? "paid"
+                            : _context.Invoices.Where(i => i.OrdersID == data.ID && i.Status == "ACTIVE").Any(i => _context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
+                                ? "partially_paid"
+                                : _context.Invoices.Any(i => i.OrdersID == data.ID && i.Status == "ACTIVE" && i.FlagInv == 1)
+                                    ? "requested"
+                                    : "invoiced",
+
+                RegulerItems = regulerItems,
+                MixItems = mixItems
+            };
+
+            return resData;
         }
 
         private async Task<string> GenerateVoucherNo(long companyId)
@@ -172,11 +327,11 @@ namespace Sopra.Services
                                 .Sum(i => i.Netto) >= a.Total,
                                 Progress = a.OrderStatus == "CANCEL"
                                     ? "cancel"
-                                    : !_context.Invoices.Any(i => i.OrdersID == a.ID)
+                                    : !_context.Invoices.Any(i => i.OrdersID == a.ID && i.Status == "ACTIVE")
                                         ? "order"
-                                        : _context.Invoices.Where(i => i.OrdersID == a.ID && i.Status == "ACTIVE").All(i => _context.Payments.Any(p => p.InvoicesID == i.ID))
+                                        : _context.Invoices.Where(i => i.OrdersID == a.ID && i.Status == "ACTIVE").All(i => _context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
                                             ? "paid"
-                                            : _context.Invoices.Where(i => i.OrdersID == a.ID && i.Status == "ACTIVE").Any(i => _context.Payments.Any(p => p.InvoicesID == i.ID))
+                                            : _context.Invoices.Where(i => i.OrdersID == a.ID && i.Status == "ACTIVE").Any(i => _context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
                                                 ? "partially_paid"
                                                 : _context.Invoices.Any(i => i.OrdersID == a.ID && i.Status == "ACTIVE" && i.FlagInv == 1)
                                                     ? "requested"
@@ -321,12 +476,35 @@ namespace Sopra.Services
                         HandleBy = x.Order.Username,
                         Status = x.Order.OrderStatus,
 
+                        AttachmentKey = x.Order.AttachmentKey,
+
                         Progress = x.Progress
                     };
                 })
                 .ToList();
 
                 return new ListResponse<dynamic>(resData, total, page);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                throw;
+            }
+        }
+
+        public async Task<OrderBottleDto> GetByKeyAsync(string key)
+        {
+            try
+            {
+                var data = await _context.Orders
+                    .FirstOrDefaultAsync(x => x.AttachmentKey == key && x.IsDeleted == false);
+
+                if (data == null) return null;
+
+                    return await getOrderDetails(data);
             }
             catch (Exception ex)
             {
@@ -347,156 +525,7 @@ namespace Sopra.Services
 
                 if (data == null) return null;
 
-                var allRegulerItems = await _context.OrderDetails
-                    .Where(x => x.OrdersID == data.ID && x.Type == "Reguler")
-                    .ToListAsync();
-
-                var allMixItems = await _context.OrderDetails
-                    .Where(x => x.OrdersID == data.ID && x.Type == "Mix")
-                    .ToListAsync();
-
-                var productItems = await _context.ProductDetails2
-                    .Where(p => p.Type == "bottle" || p.Type == "closure")
-                    .ToListAsync();
-
-                var regulerItems = allRegulerItems
-                    .Where(x => x.ObjectType == "bottle")
-                    .Select(y =>
-                    {
-                        var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
-
-                        var closureItems = allRegulerItems
-                            .Where(c => c.ObjectType == "closures" && c.ParentID == y.ObjectID)
-                            .Join(productItems.Where(p => p.Type == "closure"),
-                                c => c.ObjectID,
-                                p => p.RefID,
-                                (c, p) => new ClosureItem
-                                {
-                                    Id = c.ID,
-                                    WmsCode = p.WmsCode,
-                                    ProductsId = c.ObjectID,
-                                    Name = p.Name,
-                                    Qty = c.Qty,
-                                    QtyBox = c.QtyBox,
-                                    Price = c.ProductPrice,
-                                    Amount = c.Amount
-                                }).ToList();
-
-                        return new RegulerItem
-                        {
-                            Id = y.ID,
-                            ProductsId = y.ObjectID,
-                            WmsCode = currentBottle?.WmsCode,
-                            Name = currentBottle?.Name,
-                            Qty = y.Qty,
-                            QtyBox = y.QtyBox,
-                            Price = y.ProductPrice,
-                            Amount = y.Amount,
-                            Notes = y.Note,
-                            ClosureItems = closureItems
-                        };
-                    }).ToList();
-
-                var mixItems = allMixItems
-                    .Where(x => x.ObjectType == "bottle")
-                    .Select(y =>
-                    {
-                        var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
-
-                        var closureItems = allMixItems
-                            .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
-                            .Join(productItems.Where(p => p.Type == "closure"),
-                                c => c.ObjectID,
-                                p => p.RefID,
-                                (c, p) => new ClosureItem
-                                {
-                                    Id = c.ID,
-                                    WmsCode = p.WmsCode,
-                                    ProductsId = c.ObjectID,
-                                    Name = p.Name,
-                                    Qty = c.Qty,
-                                    QtyBox = c.QtyBox,
-                                    Price = c.ProductPrice,
-                                    Amount = c.Amount
-                                }).ToList();
-
-                        return new MixItem
-                        {
-                            Id = y.ID,
-                            ProductsId = y.ObjectID,
-                            PromoId = y.PromosID,
-                            WmsCode = currentBottle?.WmsCode,
-                            Name = currentBottle?.Name,
-                            Qty = y.Qty,
-                            QtyBox = y.QtyBox,
-                            Price = y.ProductPrice,
-                            Amount = y.Amount,
-                            Notes = y.Note,
-                            ApprovalStatus = y.ApprovalStatus,
-                            ClosureItems = closureItems
-                        };
-                    }).ToList();
-
-                if (data.Total == null)
-                {
-                    var taxValue = MathF.Floor((float)(data.TAX ?? 0));
-                    var dpp = MathF.Floor((float)(data.DPP ?? 0));
-                    var netto = dpp + taxValue;
-
-                    data.TaxValue = (decimal)taxValue;
-                    data.Total = (decimal)netto;
-                }
-
-                var resData = new OrderBottleDto
-                {
-                    ID = data.ID,
-                    RefID = data.RefID,
-                    VoucherNo = data.OrderNo,
-                    ReferenceNo = data.ReferenceNo,
-                    TransDate = data.TransDate,
-
-                    CustomerId = data.CustomersID ?? 0,
-                    CompanyId = data.CompaniesID ?? 1,
-
-                    Dealer = data.DealerTier,
-                    VouchersID = data.VouchersID,
-                    Disc2 = data.Disc2Value,
-                    Disc2Value = data.Disc2Value,
-                    DiscStatus = data.Status,
-                    DiscPercentage = data.Disc1 ?? 0,
-                    DiscAmount = Math.Floor(data.Disc1Value ?? 0),
-
-                    CreatedBy = data.Username,
-
-                    Amount = data.Amount ?? 0,
-                    TotalReguler = Math.Floor(data.TotalReguler ?? 0),
-                    TotalMix = data.TotalMix ?? 0,
-                    Sfee = Math.Floor(data.Sfee ?? 0),
-
-                    Dpp = Math.Floor(data.DPP ?? 0),
-                    Tax = data.TAX ?? 0,
-                    TaxValue = Math.Floor(data.TaxValue ?? 0),
-
-                    Netto = Math.Floor(data.Total ?? 0),
-
-                    OrderStatus = data.OrderStatus,
-                    Progress = data.OrderStatus == "CANCEL" 
-                        ? "cancel"
-                        : !_context.Invoices.Any(i => i.OrdersID == data.ID)
-                            ? "order"
-                            : _context.Invoices.Where(i => i.OrdersID == data.ID && i.Status == "ACTIVE").All(i => _context.Payments.Any(p => p.InvoicesID == i.ID))
-                                ? "paid"
-                                : _context.Invoices.Where(i => i.OrdersID == data.ID && i.Status == "ACTIVE").Any(i => _context.Payments.Any(p => p.InvoicesID == i.ID))
-                                    ? "partially_paid"
-                                    : _context.Invoices.Any(i => i.OrdersID == data.ID && i.Status == "ACTIVE" && i.FlagInv == 1)
-                                        ? "requested"
-                                        : "invoiced",
-
-                    RegulerItems = regulerItems,
-                    MixItems = mixItems
-                };
-
-                return resData;
+                    return await getOrderDetails(data);
             }
             catch (Exception ex)
             {
@@ -688,6 +717,9 @@ namespace Sopra.Services
 
                 await _context.Orders.AddAsync(order);
                 await _context.SaveChangesAsync();
+
+                var attachmentKey = Utility.GenerateAttachmentKey(data.VoucherNo, order.ID, order.TransDate ?? Utility.getCurrentTimestamps());
+                order.AttachmentKey = attachmentKey;
 
                 var orderLogs = new UserLog
                 {

@@ -88,6 +88,7 @@ namespace Sopra.Entities
         public string? Label { get; set; }
         public string? Landmark { get; set; }
         public bool? IsExpress { get; set; }
+        public string? AttachmentKey { get; set; }
         [NotMapped]
         public Reason? Reason{ get; set; }
     }

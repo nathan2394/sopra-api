@@ -19,6 +19,9 @@ using System.IO;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 
+using System.Security.Cryptography;
+using System.Text;
+
 namespace Sopra.Helpers
 {
     public static class Utility
@@ -74,6 +77,22 @@ namespace Sopra.Helpers
 
             return builder.Build();
         }
+
+        public static string GenerateAttachmentKey(string voucherNo, long id, DateTime transDate)
+        {
+            string combined = $"{voucherNo}|{id}|{transDate:yyyy-MM-dd HH:mm:ss}";
+
+            using (var sha256 = SHA256.Create())
+            {
+                byte[] hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(combined));
+                // Remove padding and make URL-safe
+                return Convert.ToBase64String(hashBytes)
+                    .Replace('+', '-')
+                    .Replace('/', '_')
+                    .Replace('=', '\0').Replace("\0", "");
+            }
+        }
+
         public static User UserFromToken(string token)
         {
             try
