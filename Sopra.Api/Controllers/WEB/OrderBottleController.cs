@@ -122,7 +122,7 @@ namespace Sopra.Api.Controllers
             }
         }
 
-        [HttpGet("CheckStatus")]
+        [HttpGet("CheckInduk/{customerID}")]
         public async Task<IActionResult> CheckIndukAnak(long customerID)
         {
             try
@@ -144,7 +144,29 @@ namespace Sopra.Api.Controllers
             }
         }
 
-        [HttpGet("CheckDealer")]
+        [HttpGet("CheckStatus/{id}")]
+        public async Task<IActionResult> CheckOrderStatus(long id)
+        {
+            try
+            {
+                var result = await _service.CheckOrderStatusAsync(id);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "OrderBottleController: Check Status by Order ID");
+                return BadRequest(new { message });
+            }
+        }
+
+        [HttpGet("CheckDealer/{customerID}")]
         public async Task<IActionResult> CheckDealer(long customerID)
         {
             try

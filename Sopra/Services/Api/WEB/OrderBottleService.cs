@@ -26,6 +26,7 @@ namespace Sopra.Services
         Task<OrderBottleDto> GetByIdAsync(long id);
         Task<OrderBottleDto> GetByKeyAsync(string key);
         Task<Voucher> CheckVoucherAsync(string voucher, long amount);
+        Task<string> CheckOrderStatusAsync(long id);
         Task<object> CheckIndukAnakAsync(long customerID);
         Task<object> CheckDealerAsync(long customerID);
         Task<Order> CreateAsync(OrderBottleDto data, int userId);
@@ -268,17 +269,7 @@ namespace Sopra.Services
                 Netto = Math.Floor(data.Total ?? 0),
 
                 OrderStatus = data.OrderStatus,
-                Progress = data.OrderStatus == "CANCEL" 
-                    ? "cancel"
-                    : !_context.Invoices.Any(i => i.OrdersID == data.ID && i.Status == "ACTIVE")
-                        ? "order"
-                        : _context.Invoices.Where(i => i.OrdersID == data.ID && i.Status == "ACTIVE").All(i => _context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
-                            ? "paid"
-                            : _context.Invoices.Where(i => i.OrdersID == data.ID && i.Status == "ACTIVE").Any(i => _context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
-                                ? "partially_paid"
-                                : _context.Invoices.Any(i => i.OrdersID == data.ID && i.Status == "ACTIVE" && i.FlagInv == 1)
-                                    ? "requested"
-                                    : "invoiced",
+                Progress = await CheckOrderStatusAsync(data.ID),
 
                 RegulerItems = regulerItems,
                 MixItems = mixItems
@@ -516,6 +507,31 @@ namespace Sopra.Services
             }
         }
 
+        public async Task<string> CheckOrderStatusAsync(long id)
+        {
+            var data = await _context.Orders
+                .FirstOrDefaultAsync(x => x.ID == id && x.IsDeleted == false);
+                
+            if (data == null)
+            {
+                return "cancel";
+            }
+
+            var status = data.OrderStatus == "CANCEL" 
+                ? "cancel"
+                : !_context.Invoices.Any(i => i.OrdersID == data.ID && i.Status == "ACTIVE")
+                    ? "order"
+                    : _context.Invoices.Where(i => i.OrdersID == data.ID && i.Status == "ACTIVE").All(i => _context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
+                        ? "paid"
+                        : _context.Invoices.Where(i => i.OrdersID == data.ID && i.Status == "ACTIVE").Any(i => _context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
+                            ? "partially_paid"
+                            : _context.Invoices.Any(i => i.OrdersID == data.ID && i.Status == "ACTIVE" && i.FlagInv == 1)
+                                ? "requested"
+                                : "invoiced";
+
+            return status;
+        }
+
         public async Task<OrderBottleDto> GetByIdAsync(long id)
         {
             try
@@ -525,7 +541,7 @@ namespace Sopra.Services
 
                 if (data == null) return null;
 
-                    return await getOrderDetails(data);
+                return await getOrderDetails(data);
             }
             catch (Exception ex)
             {
