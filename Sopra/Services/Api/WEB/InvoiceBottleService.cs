@@ -25,6 +25,7 @@ namespace Sopra.Services
         string filter, string date);
         Task<dynamic> GetByIdAsync(long id);
         Task<ListResponse<dynamic>> GetByOrderIdAsync(long id);
+        Task<ListResponse<VATransaction>> GetOutstandingVA(long companyId);
         Task<Invoice> CreateAsync(InvoiceBottle data, int userId);
         Task<Invoice> EditAsync(InvoiceBottle data, int userId);
         Task<bool> DeleteAsync(long id, int reason, int userId);
@@ -396,6 +397,29 @@ namespace Sopra.Services
                 }).ToList();
 
                 return new ListResponse<dynamic>(resData, resData?.Count ?? 0, 0);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                throw;
+            }
+        }
+
+        public async Task<ListResponse<VATransaction>> GetOutstandingVA(long companyId)
+        {
+            try
+            {
+                var result = await _context.Set<VATransaction>()
+                .FromSqlRaw("SELECT * FROM VTransactionVA WHERE company_id = {0}", companyId)
+                .ToListAsync();
+
+                var total = result.Count;
+                var page = 0;
+
+                return new ListResponse<VATransaction>(result, total, page);
             }
             catch (Exception ex)
             {

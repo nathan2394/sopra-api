@@ -103,6 +103,7 @@ namespace Sopra.Helpers
             modelBuilder.Entity<VProductStatus>().HasNoKey().ToView("VProductStatus");
             modelBuilder.Entity<ProductStatus>().HasNoKey().ToView("ProductStatus");
             modelBuilder.Entity<ProductDetail2>().HasNoKey().ToView("ProductDetails2");
+            modelBuilder.Entity<VATransaction>().HasNoKey().ToView("VTransactionVA");
         }
     }
 }
