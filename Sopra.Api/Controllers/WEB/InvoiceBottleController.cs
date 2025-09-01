@@ -100,6 +100,28 @@ namespace Sopra.Api.Controllers
             }
         }
 
+        [HttpGet("VA")]
+        public async Task<IActionResult> GetVA(long companyId)
+        {
+            try
+            {
+                var result = await _service.GetOutstandingVA(companyId);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "InvoiceBottleController: Get VA");
+                return BadRequest(new { message });
+            }
+        }
+
         [HttpPost]
         public async Task<IActionResult> Create(InvoiceBottle obj)
         {

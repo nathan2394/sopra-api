@@ -27,4 +27,18 @@ namespace Sopra.Entities
         public long? FlagInv { get; set; }
         public long? userId { get; set; }
     }
+
+    public class VATransaction
+    {
+        public long company_id { get; set; }
+        public string? first_name { get; set; }
+        public long id { get; set; }
+        public DateTime? updated_at { get; set; }
+        public decimal netto { get; set; }
+        public decimal bill { get; set; }
+        public string? cust_num { get; set; }
+        public string va_num { get; set; }
+        public long? payment_id { get; set; }
+        public string type { get; set; }
+    }
 }
