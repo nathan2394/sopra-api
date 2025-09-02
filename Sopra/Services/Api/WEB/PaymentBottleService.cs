@@ -20,6 +20,7 @@ namespace Sopra.Services
         string filter, string date);
         Task<dynamic> GetByIdAsync(long id);
         Task<Payment> CreateAsync(PaymentBottle data, int userId);
+        Task<Payment> CreateByInvoiceIDAsync(long invoiceId, string bankRef);
         Task<Payment> EditAsync(PaymentBottle data, int userId);
         Task<bool> DeleteAsync(long id, int reason, int userId);
     }
@@ -359,6 +360,65 @@ namespace Sopra.Services
                     Trace.WriteLine(ex.StackTrace);
 
                 Trace.WriteLine($"Error creating payment, request = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                throw;
+            }
+        }
+
+        public async Task<Payment> CreateByInvoiceIDAsync(long invoiceId, string bankRef)
+        {
+            await using var dbTrans = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                // Check if Invoice are available
+                var findInvoice = await _context.Invoices
+                .Where(x => x.ID == invoiceId)
+                .FirstOrDefaultAsync();
+
+                if (findInvoice == null) return null;
+
+                // Double check if its already Paid
+                var findPayment = await _context.Payments
+                .Where(x => x.InvoicesID == invoiceId)
+                .FirstOrDefaultAsync();
+
+                if (findPayment != null) return null;
+
+                var userId = findInvoice.UserIn;
+                var data = new PaymentBottle
+                {
+                    ID = 0,
+                    RefID = 0,
+                    InvoicesID = invoiceId,
+                    PaymentMethod = findInvoice.PaymentMethod, // VA BCA
+                    PaymentNo = "",
+                    Type = findInvoice.Type,
+                    BankRef = bankRef ?? "",
+                    Status = "ACTIVE",
+                    Netto = findInvoice.Netto,
+                    AmtReceive = findInvoice.Bill,
+                    CustomersID = findInvoice.CustomersID,
+                    CreatedBy = findInvoice.Username,
+                    TransDate = Utility.getCurrentTimestamps(),
+                    BankTime = Utility.getCurrentTimestamps(),
+                    CompanyID = findInvoice.CompaniesID,
+                    userId = userId
+                };
+                
+                var result = await CreatePaymentAsync(data, Convert.ToInt32(userId));
+
+                await dbTrans.CommitAsync();
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
+
+                Trace.WriteLine($"error save data payment by invoice ID (Automated from VA BCA), invoiceId = {invoiceId}");
+
+                await dbTrans.RollbackAsync();
+                Trace.WriteLine($"rollback db");
                 throw;
             }
         }

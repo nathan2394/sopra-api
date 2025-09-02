@@ -7,12 +7,12 @@ using Sopra.Services;
 using Sopra.Entities;
 using Sopra.Responses;
 using Microsoft.AspNetCore.Authorization;
+using FirebaseAdmin.Auth;
 
 namespace Sopra.Api.Controllers
 {
     [ApiController]
     [Route("PaymentBottle")]
-    [Authorize]
     public class PaymentBottleController : ControllerBase
     {
         private readonly PaymentBottleInterface _service;
@@ -34,6 +34,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet]
+        [Authorize]
         public async Task<IActionResult> Get(int limit = 0, int page = 0, string search = "", string sort = "", string filter = "", string date = "")
         {
             try
@@ -57,6 +58,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet("{id}")]
+        [Authorize]
         public async Task<IActionResult> GetById(int id)
         {
             try
@@ -79,6 +81,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpPost]
+        [Authorize]
         public async Task<IActionResult> Create(PaymentBottle obj)
         {
             try
@@ -103,7 +106,31 @@ namespace Sopra.Api.Controllers
             }
         }
 
+        [HttpPost("InvoiceID")]
+        // [Authorize]
+        public async Task<IActionResult> CreateByInvoiceID(long invoiceId, string bankRef)
+        {
+            try
+            {
+                var result = await _service.CreateByInvoiceIDAsync(invoiceId, bankRef);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    message = inner.Message;
+                    inner = inner.InnerException;
+                }
+                Trace.WriteLine(message, "PaymentBottleController: Create");
+                return BadRequest(new { message });
+            }
+        }
+
         [HttpPut]
+        [Authorize]
         public async Task<IActionResult> Edit([FromBody] PaymentBottle obj)
         {
             try
@@ -130,6 +157,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize]
         public async Task<IActionResult> Delete(long id, [FromQuery] int reason)
         {
             try
