@@ -510,60 +510,57 @@ namespace Sopra.Services
         public async Task<bool> DeleteAsync(long id, int reason, int userId)
         {
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
-
             try
             {
-                var obj = await _context.Payments.FirstOrDefaultAsync(x => x.ID == id && x.IsDeleted == false && x.Status == "ACTIVE");
-                if (obj == null) return false;
+                var payment = await _context.Payments.FirstOrDefaultAsync(x => x.ID == id && x.IsDeleted == false && x.Status == "ACTIVE");
+                if (payment == null) return false;
 
-                var getUser = await _context.Users.FirstOrDefaultAsync(x => x.ID == userId);
-                if (getUser != null)
-                {
-                    obj.Status = "CANCEL";
-                    obj.ReasonsID = reason;
-                    obj.DateUp = Utility.getCurrentTimestamps();
-                    obj.UserUp = userId;
-                    obj.UsernameCancel = $"{getUser.FirstName} {getUser.LastName}";
+                var invoice = await _context.Invoices.FirstOrDefaultAsync(x => x.ID == payment.InvoicesID && x.IsDeleted == false && x.Status == "ACTIVE");
+                if (invoice == null) return false;
 
-                    await _context.SaveChangesAsync();
-                    await Utility.AfterSave(_context, "PaymentBottle", id, "Delete");
+                var user = await _context.Users.FirstOrDefaultAsync(x => x.ID == userId);
+                if (user == null) return false;
 
-                    var PaymentDeposit = new Deposit
-                    {
-                        ObjectID = obj.ID,
-                        CustomersID = obj.CustomersID,
-                        TotalAmount = obj.Netto,
-                        TransDate = Utility.getCurrentTimestamps(),
-                        DateIn = Utility.getCurrentTimestamps(),
-                    };
+                var now = Utility.getCurrentTimestamps();
+                var userName = $"{user.FirstName} {user.LastName}";
 
-                    await _context.Deposit.AddAsync(PaymentDeposit);
-                    await _context.SaveChangesAsync();
+                 var invoiceIds = await _context.Invoices
+                    .Where(i => i.OrdersID == invoice.OrdersID && i.IsDeleted == false && i.Status == "ACTIVE")
+                    .Select(i => i.ID)
+                    .ToListAsync();
 
-                    var logs = new UserLog
-                    {
-                        ObjectID = id,
-                        ModuleID = 3,
-                        UserID = userId,
-                        Description = "Payment was cancelled.",
-                        TransDate = Utility.getCurrentTimestamps(),
-                        DateIn = Utility.getCurrentTimestamps(),
-                        UserIn = userId,
-                        UserUp = 0,
-                        IsDeleted = false
-                    };
+                var orderPayments = await _context.Payments
+                    .Where(p => p.InvoicesID.HasValue && invoiceIds.Contains(p.InvoicesID.Value) && p.IsDeleted == false && p.Status == "ACTIVE")
+                    .ToListAsync();
 
-                    await _context.UserLogs.AddAsync(logs);
-                    await _context.SaveChangesAsync();
+                var deposits = orderPayments.Select(p => {
+                    p.Status = "CANCEL";
+                    p.ReasonsID = reason;
+                    p.DateUp = now;
+                    p.UserUp = userId;
+                    p.UsernameCancel = userName;
+                    return new Deposit { ObjectID = p.ID, CustomersID = p.CustomersID, TotalAmount = p.Netto, TransDate = now, DateIn = now };
+                }).ToList();
 
-                    await dbTrans.CommitAsync();
+                var logs = orderPayments.Select(p => new UserLog {
+                    ObjectID = p.ID, ModuleID = 3, UserID = userId, Description = "Payment was cancelled.",
+                    TransDate = now, DateIn = now, UserIn = userId, UserUp = 0, IsDeleted = false
+                }).ToList();
 
-                    return true;
-                }
-                else
-                {
-                    return false;
-                }
+                await _context.Invoices.Where(i => i.OrdersID == invoice.OrdersID && i.IsDeleted == false && i.Status == "ACTIVE")
+                    .ForEachAsync(i => { i.Status = "CANCEL"; i.DateUp = now; i.UserUp = userId; });
+
+                await _context.Orders.Where(o => o.ID == invoice.OrdersID && o.IsDeleted == false && o.OrderStatus == "ACTIVE")
+                    .ForEachAsync(o => { o.OrderStatus = "CANCEL"; o.DateUp = now; o.UserUp = userId; });
+
+                await _context.Deposit.AddRangeAsync(deposits);
+                await _context.UserLogs.AddRangeAsync(logs);
+
+                await _context.SaveChangesAsync();
+                await Utility.AfterSave(_context, "PaymentBottle", id, "Delete");
+                await dbTrans.CommitAsync();
+
+                return true;
             }
             catch (Exception ex)
             {

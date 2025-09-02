@@ -457,6 +457,9 @@ namespace Sopra.Services
                         })
                     .FirstOrDefault();
 
+                custNum = getCustomer.custNum;
+                custNum = Regex.Replace(custNum, "^(62|0)", "");
+
                 if (!isDeposit)
                 {
                     if (getCustomer != null && getCustomer.custNum != null)
@@ -465,9 +468,7 @@ namespace Sopra.Services
 
                         if (!string.IsNullOrEmpty(getCustomer.custNum))
                         {
-                            var tempCustNum = getCustomer.custNum;
-                            tempCustNum = Regex.Replace(tempCustNum, "^(62|0)", "");
-                            vaNum = $"{vaCode}{tempCustNum}";
+                            vaNum = $"{vaCode}{custNum}";
                         }
                         else
                         {
@@ -479,8 +480,6 @@ namespace Sopra.Services
                 {
                     vaNum = null;
                 }
-
-                custNum = getCustomer?.custNum;
 
                 var invoice = new Invoice
                 {
