@@ -40,5 +40,6 @@ namespace Sopra.Entities
         public string va_num { get; set; }
         public long? payment_id { get; set; }
         public string type { get; set; }
+        public long isNew { get; set; }
     }
 }
