@@ -12,7 +12,6 @@ namespace Sopra.Api.Controllers
 {
     [ApiController]
     [Route("InvoiceBottle")]
-    [Authorize]
     public class InvoiceBottleController : ControllerBase
     {
         private readonly InvoiceBottleInterface _service;
@@ -34,6 +33,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet]
+        [Authorize]
         public async Task<IActionResult> Get(int limit = 0, int page = 0, string search = "", string sort = "", string filter = "", string date = "")
         {
             try
@@ -57,6 +57,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet("{id}")]
+        [Authorize]
         public async Task<IActionResult> GetById(int id)
         {
             try
@@ -79,6 +80,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet("Order/{id}")]
+        [Authorize]
         public async Task<IActionResult> GetByOrderIdAsync(int id)
         {
             try
@@ -101,6 +103,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet("VA")]
+        // [Authorize]
         public async Task<IActionResult> GetVA(long companyId)
         {
             try
@@ -123,6 +126,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpPost]
+        [Authorize]
         public async Task<IActionResult> Create(InvoiceBottle obj)
         {
             try
@@ -148,6 +152,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpPut]
+        [Authorize]
         public async Task<IActionResult> Edit([FromBody] InvoiceBottle obj)
         {
             try
@@ -174,6 +179,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize]
         public async Task<IActionResult> Delete(long id, [FromQuery] int reason)
         {
             try
