@@ -58,7 +58,7 @@ namespace Sopra.Services
 
         private void ValidateSave(OrderBottleDto data)
         {
-            bool hasValidRegulerItem = data.RegulerItems?.Any(item => item.ProductsId > 0) ?? false;
+            bool hasValidRegulerItem = data.RegulerItems?.Any(item => item.ProductsId != 0) ?? false;
             bool hasValidMixItem = data.MixItems?.Any(item => item.ProductsId > 0) ?? false;
 
             // STATUS
@@ -147,6 +147,14 @@ namespace Sopra.Services
             var productItems = await _context.ProductDetails2
                 .Where(p => p.Type == "bottle" || p.Type == "closure")
                 .ToListAsync();
+
+            productItems.Add(new ProductDetail2
+            {
+                RefID = -1,
+                Type = "bottle",
+                WmsCode = "",
+                Name = "Accs Only"
+            });
 
             var regulerItems = allRegulerItems
                 .Where(x => x.ObjectType == "bottle")
@@ -754,7 +762,7 @@ namespace Sopra.Services
                 var allOrderDetails = new List<OrderDetail>();
                 foreach (var item in data.RegulerItems)
                 {
-                    if (item.ProductsId <= 0 || item.Qty <= 0) continue;
+                    if (item.ProductsId == 0 || (item.ProductsId != -1 ? item.Qty <= 0 : false)) continue;
 
                     var regulerDetail = new OrderDetail
                     {
@@ -974,7 +982,7 @@ namespace Sopra.Services
                 var allOrderDetails = new List<OrderDetail>();
                 foreach (var item in data.RegulerItems)
                 {
-                    if (item.ProductsId <= 0 || item.Qty <= 0) continue;
+                    if (item.ProductsId == 0 || (item.ProductsId != -1 ? item.Qty <= 0 : false)) continue;
 
                     var regulerDetail = new OrderDetail
                     {
