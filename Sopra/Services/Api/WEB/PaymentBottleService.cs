@@ -398,8 +398,8 @@ namespace Sopra.Services
                     AmtReceive = findInvoice.Bill,
                     CustomersID = findInvoice.CustomersID,
                     CreatedBy = findInvoice.Username,
-                    TransDate = Utility.getCurrentTimestamps(),
-                    BankTime = Utility.getCurrentTimestamps(),
+                    TransDate = DateTime.UtcNow,
+                    BankTime = DateTime.UtcNow,
                     CompanyID = findInvoice.CompaniesID,
                     userId = userId
                 };
