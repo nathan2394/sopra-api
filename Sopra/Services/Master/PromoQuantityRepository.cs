@@ -17,9 +17,16 @@ namespace Sopra.Services
         public static void Sync()
         {
             Trace.WriteLine("Running Sync PromoQuantity....");
-            
 
-            var tablePromoQuantity = Utility.MySqlGetObjects(string.Format("select id ,created_at ,updated_at ,promo_jumbo_id ,0 as promo_mix_id ,min_quantity ,price ,support,0 as level from mit_jumbo_quantity  union all select id ,created_at ,updated_at ,0 as promo_jumbo_id ,promo_mix_id ,min_quantity ,0 as price ,support,level  from mit_mix_quantity WHERE level is not null", Utility.SyncDate), Utility.MySQLDBConnection);
+
+            var tablePromoQuantity = Utility.MySqlGetObjects(string.Format(
+                @"
+                    select mmq.id, mmq.created_at, mmq.updated_at, 0 as promo_jumbo_id, promo_mix_id, min_quantity, 0 as price, support, level
+                    from mit_promo_mix mpm
+                        inner join mit_mix_quantity mmq on mpm.id  = mmq.promo_mix_id 
+                    where (mpm.updated_at is null AND mpm.created_at > '{0:yyyy-MM-dd HH:mm:ss}') OR mpm.updated_at > '{0:yyyy-MM-dd HH:mm:ss}'
+                ", Utility.SyncDate), Utility.MySQLDBConnection);
+
             if (tablePromoQuantity != null)
             {
                 Trace.WriteLine($"Start Sync Promo Quantity{tablePromoQuantity.Rows.Count} Data(s)....");
@@ -34,14 +41,14 @@ namespace Sopra.Services
                             // CHECK DATA EXISTS / TIDAK DI SQL
 
                             var condition = Convert.ToInt64(row["promo_jumbo_id"]) == 0 ? "AND PromoJumboId = 0" : "AND PromoMixId = 0";
-                            Utility.ExecuteNonQuery(string.Format("DELETE PromoQuantities WHERE RefID = {0} AND IsDeleted = 0 {1}", row["ID"],condition));
+                            Utility.ExecuteNonQuery(string.Format("DELETE PromoQuantities WHERE RefID = {0} AND IsDeleted = 0 {1}", row["ID"], condition));
 
                             var PromoQuantity = new PromoQuantity();
 
                             PromoQuantity.RefID = Convert.ToInt64(row["id"]);
                             PromoQuantity.PromoJumboId = Convert.ToInt64(row["promo_jumbo_id"]);
                             PromoQuantity.PromoMixId = Convert.ToInt64(row["promo_mix_id"]);
-                            PromoQuantity.MinQuantity= Convert.ToInt32(row["min_quantity"]);
+                            PromoQuantity.MinQuantity = Convert.ToInt32(row["min_quantity"]);
                             PromoQuantity.Price = Convert.ToDecimal(row["price"]);
                             PromoQuantity.Level = Convert.ToInt32(row["level"]);
                             PromoQuantityRepository.Insert(PromoQuantity);

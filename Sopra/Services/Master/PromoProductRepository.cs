@@ -18,8 +18,19 @@ namespace Sopra.Services.Master
         public static void Sync()
         {
             Trace.WriteLine("Running Sync PromoProduct....");
-            
-            var tablePromoProduct = Utility.MySqlGetObjects(string.Format("select mjp.id ,mjp.created_at ,mjp.updated_at ,promo_jumbo_id ,0 as promo_mix_id ,mp.mit_calculators_id as products_id ,mp2.mit_closures_id as accs1_id ,mp3.mit_closures_id as accs2_id  ,0 as price,0 as price2,0 as price3 from mit_jumbo_product mjp join mit_products mp on mp.id = mjp.products_id left join mit_products mp2 on mp2.id = mjp.accs1_id left join mit_products mp3 on mp3.id = mjp.accs2_id  union all select mmp.id ,mmp.created_at ,mmp.updated_at ,0 as promo_jumbo_id ,promo_mix_id ,mp.mit_calculators_id as products_id ,mp2.mit_closures_id as accs1_id ,mp3.mit_closures_id as accs2_id ,mmp.price,mmp.price2,mmp.price3 from mit_mix_product mmp join mit_products mp on mp.id = mmp.products_id left join mit_products mp2 on mp2.id = mmp.accs1_id  left join mit_products mp3 on mp3.id = mmp.accs2_id order by id desc limit 2050", Utility.SyncDate), Utility.MySQLDBConnection);
+
+            var tablePromoProduct = Utility.MySqlGetObjects(string.Format(
+                @"
+                    select 
+                        mmp.id ,mmp.created_at ,mmp.updated_at ,0 as promo_jumbo_id ,promo_mix_id ,
+                        mp.mit_calculators_id as products_id ,mp2.mit_closures_id as accs1_id ,mp3.mit_closures_id as accs2_id ,
+                        mmp.price,mmp.price2,mmp.price3 
+                    from mit_mix_product mmp 
+                        join mit_products mp on mp.id = mmp.products_id 
+                        left join mit_products mp2 on mp2.id = mmp.accs1_id  
+                        left join mit_products mp3 on mp3.id = mmp.accs2_id 
+                    where (mmp.updated_at is null AND mmp.created_at > '{0:yyyy-MM-dd HH:mm:ss}') OR mmp.updated_at > '{0:yyyy-MM-dd HH:mm:ss}'
+                    order by id desc", Utility.SyncDate), Utility.MySQLDBConnection);
             if (tablePromoProduct != null)
             {
                 Trace.WriteLine($"Start Sync Promo Quantity {tablePromoProduct.Rows.Count} Data(s)....");
@@ -39,9 +50,9 @@ namespace Sopra.Services.Master
                             var PromoProduct = new PromoProduct();
 
                             PromoProduct.RefID = row["id"] == DBNull.Value ? 0 : Convert.ToInt64(row["id"]);
-                            PromoProduct.PromoJumboId = row["promo_jumbo_id"] == DBNull.Value ? 0 :Convert.ToInt64(row["promo_jumbo_id"]);
+                            PromoProduct.PromoJumboId = row["promo_jumbo_id"] == DBNull.Value ? 0 : Convert.ToInt64(row["promo_jumbo_id"]);
                             PromoProduct.PromoMixId = row["promo_mix_id"] == DBNull.Value ? 0 : Convert.ToInt64(row["promo_mix_id"]);
-                            PromoProduct.ProductsId = row["products_id"] == DBNull.Value ? 0:Convert.ToInt64(row["products_id"]);
+                            PromoProduct.ProductsId = row["products_id"] == DBNull.Value ? 0 : Convert.ToInt64(row["products_id"]);
                             PromoProduct.Accs1Id = row["accs1_id"] == DBNull.Value ? 0 : Convert.ToInt64(row["accs1_id"]);
                             PromoProduct.Accs2Id = row["accs2_id"] == DBNull.Value ? 0 : Convert.ToInt64(row["accs2_id"]);
                             PromoProduct.Price = row["price"] == DBNull.Value ? 0 : Convert.ToDecimal(row["price"]);

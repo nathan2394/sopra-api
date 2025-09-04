@@ -18,9 +18,27 @@ namespace Sopra.Services
         public static void Sync()
         {
             Trace.WriteLine("Running Sync PromoOrderBottleDetail....");
-           
 
-            var tablePromoOrderBottleDetail = Utility.MySqlGetObjects(string.Format("select id ,created_at ,updated_at ,mit_orders_bottle_id ,promo_jumbo_id ,product_jumbo_id ,0 as promo_mix_id ,0 as product_mix_id ,qty_box ,qty ,product_price ,amount ,flag_promo ,0 as outstanding ,0 as qty_acc ,notes from mit_orders_bottle_detail_jumbo WHERE (updated_at is null AND created_at > '{0:yyyy-MM-dd HH:mm:ss}') OR updated_at > '{0:yyyy-MM-dd HH:mm:ss}' union all select id ,created_at ,updated_at ,mit_orders_bottle_id ,0 as promo_jumbo_id ,0 as product_jumbo_id ,promo_mix_id ,product_mix_id ,qty_box ,qty ,product_price ,amount ,flag_promo ,0 as outstanding ,qty_acc ,notes from mit_orders_bottle_detail_mix WHERE (updated_at is null AND created_at > '{0:yyyy-MM-dd HH:mm:ss}') OR updated_at > '{0:yyyy-MM-dd HH:mm:ss}'", Utility.SyncDate), Utility.MySQLDBConnection);
+
+            var tablePromoOrderBottleDetail = Utility.MySqlGetObjects(string.Format(
+                @"
+                    select id ,created_at ,updated_at ,mit_orders_bottle_id ,promo_jumbo_id,
+                        product_jumbo_id ,0 as promo_mix_id ,0 as product_mix_id ,qty_box ,qty,
+                        product_price ,amount ,flag_promo ,0 as outstanding ,0 as qty_acc ,notes 
+                    from 
+                        mit_orders_bottle_detail_jumbo 
+                    WHERE (updated_at is null AND created_at > '{0:yyyy-MM-dd HH:mm:ss}') 
+                        OR updated_at > '{0:yyyy-MM-dd HH:mm:ss}'
+                         
+                    union all 
+                    
+                    select id ,created_at ,updated_at ,mit_orders_bottle_id ,0 as promo_jumbo_id,
+                        0 as product_jumbo_id ,promo_mix_id ,product_mix_id ,qty_box ,qty ,product_price,
+                        amount ,flag_promo ,0 as outstanding ,qty_acc ,notes 
+                    from mit_orders_bottle_detail_mix 
+                    WHERE (updated_at is null AND created_at > '{0:yyyy-MM-dd HH:mm:ss}') 
+                        OR updated_at > '{0:yyyy-MM-dd HH:mm:ss}'", Utility.SyncDate), Utility.MySQLDBConnection);
+
             if (tablePromoOrderBottleDetail != null)
             {
                 Trace.WriteLine($"Start Sync Promo Quantity{tablePromoOrderBottleDetail.Rows.Count} Data(s)....");

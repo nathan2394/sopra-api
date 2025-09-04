@@ -110,12 +110,12 @@ namespace Sopra.Services
 
             //DepositRepository.Sync(); // V
             //SubscriptionRepository.Sync(); // V
-
-            //PromoRepository.Sync(); // V
-            //PromoProductRepository.Sync(); // V
-            //PromoQuantityRepository.Sync(); // V
-            //PromoCartDetailRepository.Sync(); // V
-            //PromoOrderBottleDetailRepository.Sync(); // V
+            Utility.SyncDate = DateTime.Now.AddDays(-1); // FOR TESTING PURPOSE, BACK TO 10 MINUTES
+            PromoRepository.Sync(); // V
+            PromoProductRepository.Sync(); // V
+            PromoQuantityRepository.Sync(); // V
+            // PromoCartDetailRepository.Sync(); // V
+            // PromoOrderBottleDetailRepository.Sync(); // V
 
             //TagVideoRepository.Sync(); // V
             //UserDealerRepository.Sync(); // V
@@ -139,12 +139,12 @@ namespace Sopra.Services
             // UserRepository.Sync();
             //Configuration.GetSection("APIURL").Value;
 
-            Trace.WriteLine($"1 {Utility.APIURL}");
-            OrderSyncService.Sync(context);
-            Trace.WriteLine("2");
-            InvoiceSyncService.Sync(context);
-            Trace.WriteLine("3");
-            PaymentSyncService.Sync(context);
+            // Trace.WriteLine($"1 {Utility.APIURL}");
+            // OrderSyncService.Sync(context);
+            // Trace.WriteLine("2");
+            // InvoiceSyncService.Sync(context);
+            // Trace.WriteLine("3");
+            // PaymentSyncService.Sync(context);
             #endregion
 
             Trace.WriteLine("================");

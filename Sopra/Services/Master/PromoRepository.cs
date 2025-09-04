@@ -19,9 +19,14 @@ namespace Sopra.Services
         public static void Sync()
         {
             Trace.WriteLine("Running Sync Promo....");
-            
 
-            var tablePromo = Utility.MySqlGetObjects(string.Format("select *,'Mix' as type from mit_promo_mix WHERE (updated_at is null AND created_at > '{0:yyyy-MM-dd HH:mm:ss}') OR updated_at > '{0:yyyy-MM-dd HH:mm:ss}' union all select *,'Jumbo' as type from mit_promo_jumbo WHERE (updated_at is null AND created_at > '{0:yyyy-MM-dd HH:mm:ss}') OR updated_at > '{0:yyyy-MM-dd HH:mm:ss}'", Utility.SyncDate), Utility.MySQLDBConnection);
+            var tablePromo = Utility.MySqlGetObjects(string.Format(
+                @"
+                    select *,'Mix' as type 
+                    from mit_promo_mix 
+                    WHERE (updated_at is null AND created_at > '{0:yyyy-MM-dd HH:mm:ss}') OR updated_at > '{0:yyyy-MM-dd HH:mm:ss}'
+                ", Utility.SyncDate), Utility.MySQLDBConnection);
+
             if (tablePromo != null)
             {
                 Trace.WriteLine($"Start Sync Promo {tablePromo.Rows.Count} Data(s)....");
@@ -36,12 +41,12 @@ namespace Sopra.Services
                             // CHECK DATA EXISTS / TIDAK DI SQL
 
                             var type = row["type"].ToString();
-                            Utility.ExecuteNonQuery(string.Format("DELETE Promos WHERE RefID = {0} AND IsDeleted = 0 AND Type = '{1}'", row["ID"],type));
+                            Utility.ExecuteNonQuery(string.Format("DELETE Promos WHERE RefID = {0} AND IsDeleted = 0 AND Type = '{1}'", row["ID"], type));
 
                             var Promo = new Promo();
 
                             Promo.RefID = Convert.ToInt64(row["id"]);
-                            Promo.Name= row["name"].ToString();
+                            Promo.Name = row["name"].ToString();
                             Promo.PromoDesc = row["promo_desc"].ToString();
                             Promo.StartDate = row["start_date"] == DBNull.Value ? (DateTime?)null : DateTime.ParseExact(row["start_date"].ToString(), "dd/MM/yyyy", CultureInfo.InvariantCulture);
                             Promo.EndDate = row["end_date"] == DBNull.Value ? (DateTime?)null : DateTime.ParseExact(row["end_date"].ToString(), "dd/MM/yyyy", CultureInfo.InvariantCulture);
