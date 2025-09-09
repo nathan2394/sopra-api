@@ -164,7 +164,7 @@ namespace Sopra.Services
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
             try
             {
-                Trace.WriteLine($"payload order from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                Trace.WriteLine($"payload deposit from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
 
                 await _context.Deposit.AddAsync(data);
                 await _context.SaveChangesAsync();
@@ -195,7 +195,7 @@ namespace Sopra.Services
                 if (ex.StackTrace != null)
                     Trace.WriteLine(ex.StackTrace);
 
-                Trace.WriteLine($"error save data order, payload = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                Trace.WriteLine($"error save data deposit, payload = " + JsonConvert.SerializeObject(data, Formatting.Indented));
 
                 await dbTrans.RollbackAsync();
                 Trace.WriteLine($"rollback db");

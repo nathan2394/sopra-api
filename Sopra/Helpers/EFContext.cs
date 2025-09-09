@@ -82,6 +82,7 @@ namespace Sopra.Helpers
         public DbSet<OrderDetail> OrderDetails { get; set; }
         public DbSet<Invoice> Invoices { get; set; }
         public DbSet<Payment> Payments { get; set; }
+        public DbSet<Role> Role { get; set; }
         public DbSet<Deposit> Deposit { get; set; }
         public DbSet<DepositDetail> DepositDetails { get; set; }
         public DbSet<Promo> Promos { get; set; }

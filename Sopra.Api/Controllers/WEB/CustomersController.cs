@@ -46,7 +46,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<IActionResult> GetById(long id)
         {
             try
             {

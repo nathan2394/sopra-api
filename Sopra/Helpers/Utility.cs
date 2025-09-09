@@ -130,24 +130,19 @@ namespace Sopra.Helpers
 
         public static string HashPassword(string password)
         {
-            // Generate a random salt
-            byte[] saltBytes = GenerateRandomSalt();
-
-            // Hash the password using PHP's password_hash equivalent
-            string hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, Convert.ToBase64String(saltBytes));
-
+            string hashedPassword = BCrypt.Net.BCrypt.HashPassword(password);
             return hashedPassword;
         }
 
-        private static byte[] GenerateRandomSalt()
-        {
-            using (var rng = new RNGCryptoServiceProvider())
-            {
-                byte[] salt = new byte[16];
-                rng.GetBytes(salt);
-                return salt;
-            }
-        }
+        // private static byte[] GenerateRandomSalt()
+        // {
+        //     using (var rng = new RNGCryptoServiceProvider())
+        //     {
+        //         byte[] salt = new byte[16];
+        //         rng.GetBytes(salt);
+        //         return salt;
+        //     }
+        // }
 
         public static bool VerifyHashedPassword(string hashedPassword, string password)
         {
