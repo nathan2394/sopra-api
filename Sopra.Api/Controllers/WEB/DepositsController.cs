@@ -22,7 +22,7 @@ namespace Sopra.Api.Controllers
             _service = service;
         }
 
-        private async Task<int> getUserId()
+        private int GetUserId()
         {
             var userIdClaim = User.FindFirst("id")?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
@@ -61,7 +61,7 @@ namespace Sopra.Api.Controllers
         {
             try
             {
-                var userId = await getUserId();
+                var userId = GetUserId();
                 if (userId == 0) return BadRequest("Invalid Token");
 
                 var result = await _service.CreateAsync(obj, userId);
