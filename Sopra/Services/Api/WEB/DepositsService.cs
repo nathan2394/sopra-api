@@ -50,7 +50,7 @@ namespace Sopra.Services
 
                 // Searching
                 if (!string.IsNullOrEmpty(search))
-                    query = query.Where(x => x.Deposit.CustomersID.ToString().Equals(search));
+                    query = query.Where(x => x.Customer.Name.Contains(search));
 
                 // Filtering
                 if (!string.IsNullOrEmpty(filter))
