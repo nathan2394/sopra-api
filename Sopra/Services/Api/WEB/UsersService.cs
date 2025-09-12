@@ -42,7 +42,10 @@ namespace Sopra.Services
         private async Task ValidateSave(Users data, Boolean isCreate)
         {
             // SAME EMAIL?
-            var existing = await _context.Users.FirstOrDefaultAsync(x => x.Email == data.Email && x.ID != data.ID);
+            var existing = await _context.Users.FirstOrDefaultAsync(x =>
+                x.Email == data.Email && x.ID != data.ID && x.IsDeleted == false
+            );
+
             if (existing != null)
             {
                 throw new ArgumentException("Email is already in use.");
