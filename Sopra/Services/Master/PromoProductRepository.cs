@@ -27,9 +27,10 @@ namespace Sopra.Services.Master
                         mmp.price,mmp.price2,mmp.price3 
                     from mit_mix_product mmp 
                         join mit_products mp on mp.id = mmp.products_id 
+                        join mit_promo_mix mpm on mmp.promo_mix_id = mpm.id
                         left join mit_products mp2 on mp2.id = mmp.accs1_id  
                         left join mit_products mp3 on mp3.id = mmp.accs2_id 
-                    where (mmp.updated_at is null AND mmp.created_at > '{0:yyyy-MM-dd HH:mm:ss}') OR mmp.updated_at > '{0:yyyy-MM-dd HH:mm:ss}'
+                    where (mpm.updated_at is null AND mpm.created_at > '{0:yyyy-MM-dd HH:mm:ss}') OR mpm.updated_at > '{0:yyyy-MM-dd HH:mm:ss}'
                     order by id desc", Utility.SyncDate), Utility.MySQLDBConnection);
             if (tablePromoProduct != null)
             {
