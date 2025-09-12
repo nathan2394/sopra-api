@@ -39,7 +39,7 @@ namespace Sopra.Services
             _context = context;
         }
 
-        private async void ValidateSave(Users data, Boolean isCreate)
+        private async Task ValidateSave(Users data, Boolean isCreate)
         {
             // SAME EMAIL?
             var existing = await _context.Users.FirstOrDefaultAsync(x => x.Email == data.Email && x.ID != data.ID);
@@ -92,7 +92,7 @@ namespace Sopra.Services
                 var query = from a in _context.Users
                             join b in _context.Role on a.RoleID equals b.ID into RoleJoin
                             from b in RoleJoin.DefaultIfEmpty()
-                            where a.IsDeleted == false
+                            where a.IsDeleted == false && a.RoleID != 9 // Reseller
                             select new { User = a, Role = b };
 
                 var dateBetween = "";
@@ -262,7 +262,7 @@ namespace Sopra.Services
             try
             {
                 Trace.WriteLine($"payload user from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
-                ValidateSave(data, true);
+                await ValidateSave(data, true);
 
                 var tempData = new User
                 {
@@ -305,11 +305,10 @@ namespace Sopra.Services
         public async Task<User> EditAsync(Users data, int userId)
         {
             await using var dbTrans = await _context.Database.BeginTransactionAsync();
-
             try
             {
                 Trace.WriteLine($"Edit user with request = " + JsonConvert.SerializeObject(data, Formatting.Indented));
-                ValidateSave(data, false);
+                await ValidateSave(data, false);
 
                 var obj = _context.Users
                     .Where(i => i.ID == data.ID)
