@@ -217,6 +217,7 @@ namespace Sopra.Api
             services.AddScoped<DepositsInterface, DepositsService>();
             services.AddScoped<CustomersInterface, CustomersService>();
             services.AddScoped<OrderInterface, OrderService>();
+            services.AddScoped<DashboardInterface, DashboardService>();
             services.AddScoped<OrderBottleInterface, OrderBottleService>();
             services.AddScoped<InvoiceBottleService>();
             services.AddScoped<InvoiceBottleInterface, InvoiceBottleService>();
