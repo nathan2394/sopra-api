@@ -39,12 +39,19 @@ namespace Sopra.Services
             _context = context;
         }
 
-        private void ValidateSave(dynamic data, Boolean isCreate)
+        private async void ValidateSave(Users data, Boolean isCreate)
         {
+            // SAME EMAIL?
+            var existing = await _context.Users.FirstOrDefaultAsync(x => x.Email == data.Email && x.ID != data.ID);
+            if (existing != null)
+            {
+                throw new ArgumentException("Email is already in use.");
+            }
+            
             // EMAIL
             if (string.IsNullOrEmpty(data.Email))
             {
-                throw new ArgumentException("Customer must not be empty.");
+                throw new ArgumentException("Email must not be empty.");
             }
 
             // FIRST NAME
@@ -313,8 +320,10 @@ namespace Sopra.Services
                     obj.FirstName = data.FirstName;
                     obj.LastName = data.LastName;
                     obj.Name = $"{data.FirstName} {data.LastName}";
+
                     obj.CompanyID = string.Join(",", data.CompanyID);
                     obj.RoleID = data.RoleID;
+                    obj.Email = data.Email;
 
                     if (!string.IsNullOrEmpty(data.Password))
                     {

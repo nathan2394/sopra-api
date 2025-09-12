@@ -39,7 +39,6 @@ namespace Sopra.Services
         private readonly EFContext _context;
         private readonly IOrderBottleRepository _orderBottleRepository;
         private readonly InvoiceBottleService _invoiceService;
-        private readonly PaymentBottleService _paymentService;
 
         public OrderBottleService(IOrderBottleRepository orderBottleRepository)
         {
@@ -47,13 +46,11 @@ namespace Sopra.Services
         }
         public OrderBottleService(
             EFContext context,
-            InvoiceBottleService invoiceService,
-            PaymentBottleService paymentService
+            InvoiceBottleService invoiceService
         )
         {
             _context = context;
             _invoiceService = invoiceService;
-            _paymentService = paymentService;
         }
 
         private void ValidateSave(OrderBottleDto data)
@@ -877,28 +874,6 @@ namespace Sopra.Services
                     };
 
                     var invoice = await _invoiceService.CreateInvoiceAsync(invoiceItem, userId);
-
-                    // INSERT PAYMENT (DEPOSIT)
-                    if (item.PaymentMethod == 3)
-                    {
-                        var paymentItem = new PaymentBottle
-                        {
-                            RefID = invoice.RefID,
-                            InvoicesID = invoice.ID,
-                            TransDate = invoice.TransDate,
-                            CustomersID = invoice.CustomersID,
-                            CompanyID = invoice.CompaniesID,
-                            CreatedBy = invoice.Username,
-                            Netto = invoice.Netto,
-                            BankTime = Utility.getCurrentTimestamps(),
-                            BankRef = "DEPOSIT",
-                            AmtReceive = invoice.Netto,
-                            Type = invoice.Type,
-                            Status = "ACTIVE"
-                        };
-
-                        var payment = await _paymentService.CreatePaymentAsync(paymentItem, userId);
-                    }
                 }
 
                 await Utility.AfterSave(_context, "OrderBottle", data.ID, "Add");
