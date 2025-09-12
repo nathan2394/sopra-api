@@ -153,7 +153,7 @@ namespace Sopra.Services
                     query = query.Where(x => x.Invoice.RefID.ToString().Equals(search)
                         || x.Invoice.InvoiceNo.Contains(search)
                         || x.Invoice.TransDate.ToString().Contains(search)
-                        || x.Invoice.CustomersID.ToString().Equals(search)
+                        || x.Customer.Name.Contains(search)
                         || x.Invoice.VANum.Contains(search)
                         );
 

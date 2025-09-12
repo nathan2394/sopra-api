@@ -342,7 +342,7 @@ namespace Sopra.Services
                         || x.Order.OrderNo.Contains(search)
                         || x.Order.TransDate.ToString().Contains(search)
                         || x.Order.CustomersID.ToString().Equals(search)
-                        || x.Customer.Name.ToString().Equals(search)
+                        || x.Customer.Name.Contains(search)
                         || x.Order.ReferenceNo.Contains(search)
                         || x.Order.OrderDetail.Any(od => od.PromosID.ToString().Equals(search))
                         );
