@@ -34,10 +34,15 @@ namespace Sopra.Services
     public class InvoiceBottleService : InvoiceBottleInterface
     {
         private readonly EFContext _context;
+        private readonly PaymentBottleService _paymentService;
 
-        public InvoiceBottleService(EFContext context)
+        public InvoiceBottleService(
+            EFContext context,
+            PaymentBottleService paymentService
+        )
         {
             _context = context;
+            _paymentService = paymentService;
         }
 
         private void ValidateSave(InvoiceBottle data)
@@ -148,7 +153,7 @@ namespace Sopra.Services
                     query = query.Where(x => x.Invoice.RefID.ToString().Equals(search)
                         || x.Invoice.InvoiceNo.Contains(search)
                         || x.Invoice.TransDate.ToString().Contains(search)
-                        || x.Invoice.CustomersID.ToString().Equals(search)
+                        || x.Customer.Name.Contains(search)
                         || x.Invoice.VANum.Contains(search)
                         );
 
@@ -506,6 +511,28 @@ namespace Sopra.Services
                 await _context.Invoices.AddAsync(invoice);
                 await _context.SaveChangesAsync();
 
+                // INSERT PAYMENT (DEPOSIT)
+                if (invoice.PaymentMethod == 3)
+                {
+                    var paymentItem = new PaymentBottle
+                    {
+                        RefID = invoice.RefID,
+                        InvoicesID = invoice.ID,
+                        TransDate = invoice.TransDate,
+                        CustomersID = invoice.CustomersID,
+                        CompanyID = invoice.CompaniesID,
+                        CreatedBy = data.CreatedBy,
+                        Netto = invoice.Netto,
+                        BankTime = Utility.getCurrentTimestamps(),
+                        BankRef = "DEPOSIT",
+                        AmtReceive = invoice.Netto,
+                        Type = invoice.Type,
+                        Status = "ACTIVE"
+                    };
+
+                    var payment = await _paymentService.CreatePaymentAsync(paymentItem, userId);
+                }
+
                 var invoiceLog = new UserLog
                 {
                     ObjectID = invoice.ID,
@@ -545,6 +572,7 @@ namespace Sopra.Services
             try
             {
                 var result = await CreateInvoiceAsync(data, userId);
+
                 await dbTrans.CommitAsync();
                 return result;
             }
@@ -587,8 +615,6 @@ namespace Sopra.Services
                     if (getInvoice.PaymentMethod != data.PaymentMethod)
                     {
                         getInvoice.PaymentMethod = data.PaymentMethod;
-                        // Notify Payment Method has been changed
-                        // Payment method changed to {getInvoice.PaymentMethod}
                     }
 
                     getInvoice.DateUp = Utility.getCurrentTimestamps();
@@ -597,6 +623,28 @@ namespace Sopra.Services
 
                 _context.Invoices.Update(getInvoice);
                 await _context.SaveChangesAsync();
+
+                // INSERT PAYMENT (DEPOSIT)
+                if (getInvoice.PaymentMethod == 3)
+                {
+                    var paymentItem = new PaymentBottle
+                    {
+                        RefID = getInvoice.RefID,
+                        InvoicesID = getInvoice.ID,
+                        TransDate = getInvoice.TransDate,
+                        CustomersID = getInvoice.CustomersID,
+                        CompanyID = getInvoice.CompaniesID,
+                        CreatedBy = data.CreatedBy,
+                        Netto = getInvoice.Netto,
+                        BankTime = Utility.getCurrentTimestamps(),
+                        BankRef = "DEPOSIT",
+                        AmtReceive = getInvoice.Netto,
+                        Type = getInvoice.Type,
+                        Status = "ACTIVE"
+                    };
+
+                    var payment = await _paymentService.CreatePaymentAsync(paymentItem, userId);
+                }
 
                 var invoiceLog = new UserLog
                 {

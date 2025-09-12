@@ -55,7 +55,7 @@ namespace Sopra.Services
                             User.CustNum = row["cust_num"] == DBNull.Value ? null : row["cust_num"].ToString();
                             User.CustomerGroup = row["customer_group"] == DBNull.Value ? 0 : Convert.ToInt64(row["customer_group"]);
                             User.LastLoginDates = row["last_login_dates"] == DBNull.Value ? null : Convert.ToDateTime(row["last_login_dates"]);
-                            User.CompanyID = row["company_id"] == DBNull.Value ? 0 : Convert.ToInt64(row["company_id"]);
+                            User.CompanyID = row["company_id"] == DBNull.Value ? "0" : Convert.ToString(row["company_id"]);
                             User.Subdomain = row["subdomain"] == DBNull.Value ? null : row["subdomain"].ToString();
                             UserRepository.Insert(User);
                             

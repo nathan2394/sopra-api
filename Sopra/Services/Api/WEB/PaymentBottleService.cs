@@ -101,7 +101,7 @@ namespace Sopra.Services
                     query = query.Where(x => x.Payment.RefID.ToString().Equals(search)
                         || x.Payment.PaymentNo.Contains(search)
                         || x.Payment.TransDate.ToString().Contains(search)
-                        || x.Payment.CustomersID.ToString().Equals(search)
+                        || x.Customer.Name.Contains(search)
                         );
 
                 // Filtering

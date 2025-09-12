@@ -11,12 +11,13 @@ using Microsoft.AspNetCore.Authorization;
 namespace Sopra.Api.Controllers
 {
     [ApiController]
-    [Route("InvoiceBottle")]
-    public class InvoiceBottleController : ControllerBase
+    [Route("Users")]
+    [Authorize]
+    public class UsersController : ControllerBase
     {
-        private readonly InvoiceBottleInterface _service;
+        private readonly UsersInterface _service;
 
-        public InvoiceBottleController(InvoiceBottleInterface service)
+        public UsersController(UsersInterface service)
         {
             _service = service;
         }
@@ -33,7 +34,6 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet]
-        [Authorize]
         public async Task<IActionResult> Get(int limit = 0, int page = 0, string search = "", string sort = "", string filter = "", string date = "")
         {
             try
@@ -51,13 +51,12 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "InvoiceBottleController: Get All");
+                Trace.WriteLine(message, "UsersController: Get All");
                 return BadRequest(new { message });
             }
         }
 
         [HttpGet("{id}")]
-        [Authorize]
         public async Task<IActionResult> GetById(int id)
         {
             try
@@ -74,60 +73,13 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "InvoiceBottleController: Get by ID");
-                return BadRequest(new { message });
-            }
-        }
-
-        [HttpGet("Order/{id}")]
-        [Authorize]
-        public async Task<IActionResult> GetByOrderIdAsync(int id)
-        {
-            try
-            {
-                var result = await _service.GetByOrderIdAsync(id);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                var message = ex.Message;
-                var inner = ex.InnerException;
-                while (inner != null)
-                {
-                    message = inner.Message;
-                    inner = inner.InnerException;
-                }
-                Trace.WriteLine(message, "InvoiceBottleController: Get by Order ID");
-                return BadRequest(new { message });
-            }
-        }
-
-        [HttpGet("VA")]
-        // [Authorize]
-        public async Task<IActionResult> GetVA(long companyId)
-        {
-            try
-            {
-                var result = await _service.GetOutstandingVA(companyId);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                var message = ex.Message;
-                var inner = ex.InnerException;
-                while (inner != null)
-                {
-                    message = inner.Message;
-                    inner = inner.InnerException;
-                }
-                Trace.WriteLine(message, "InvoiceBottleController: Get VA");
+                Trace.WriteLine(message, "UsersController: Get by ID");
                 return BadRequest(new { message });
             }
         }
 
         [HttpPost]
-        [Authorize]
-        public async Task<IActionResult> Create(InvoiceBottle obj)
+        public async Task<IActionResult> Create([FromBody] Users obj)
         {
             try
             {
@@ -146,14 +98,13 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "InvoiceBottleController: Create");
+                Trace.WriteLine(message, "UsersController: Create");
                 return BadRequest(new { message });
             }
         }
 
         [HttpPut]
-        [Authorize]
-        public async Task<IActionResult> Edit([FromBody] InvoiceBottle obj)
+        public async Task<IActionResult> Edit([FromBody] Users obj)
         {
             try
             {
@@ -161,7 +112,7 @@ namespace Sopra.Api.Controllers
                 if (userId == 0) return BadRequest("Invalid Token");
 
                 var result = await _service.EditAsync(obj, userId);
-                var response = new Response<Invoice>(result);
+                var response = new Response<User>(result);
                 return Ok(response);
             }
             catch (Exception ex)
@@ -173,21 +124,20 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "InvoiceBottleController: Edit");
+                Trace.WriteLine(message, "UsersController: Edit");
                 return BadRequest(new { message });
             }
         }
 
         [HttpDelete("{id}")]
-        [Authorize]
-        public async Task<IActionResult> Delete(long id, [FromQuery] int reason)
+        public async Task<IActionResult> Delete(long id)
         {
             try
             {
                 var userId = GetUserId();
                 if (userId == 0) return BadRequest("Invalid Token");
 
-                var result = await _service.DeleteAsync(id, reason, userId);
+                var result = await _service.DeleteAsync(id, userId);
                 var response = new Response<bool>(result);
 
                 return Ok(response);
@@ -201,7 +151,7 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "InvoiceBottleController: Delete");
+                Trace.WriteLine(message, "UsersController: Delete");
                 return BadRequest(new { message });
             }
         }

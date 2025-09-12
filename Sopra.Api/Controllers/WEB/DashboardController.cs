@@ -8,38 +8,29 @@ using Sopra.Entities;
 using Sopra.Responses;
 using Microsoft.AspNetCore.Authorization;
 
-namespace Sopra.Api.Controllers
+namespace Sopra.Controllers
 {
     [ApiController]
-    [Route("Deposits")]
+    [Route("Dashboard")]
     [Authorize]
-    public class DepositsController : ControllerBase
+    public class DashboardController : ControllerBase
     {
-        private readonly DepositsInterface _service;
+        private readonly DashboardInterface _service;
 
-        public DepositsController(DepositsInterface service)
+        public DashboardController(DashboardInterface service)
         {
             _service = service;
         }
 
-        private int GetUserId()
-        {
-            var userIdClaim = User.FindFirst("id")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
-            {
-                return 0;
-            }
-
-            return userId;
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> Get(int limit = 0, int page = 0, string search = "", string sort = "", string filter = "", string date = "")
+        [HttpGet("Overview")]
+        public async Task<IActionResult> GetOverview(
+            [FromQuery] DateTime startDate,
+            [FromQuery] DateTime endDate,
+            [FromQuery] int companyID)
         {
             try
             {
-                var total = 0;
-                var result = await _service.GetAllAsync(limit, page, total, search, sort, filter, date);
+                var result = await _service.LoadOverview(startDate, endDate, companyID);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -51,20 +42,21 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "DepositsController: Get All");
+                Trace.WriteLine(message, $"DashboardController: Get Overview");
                 return BadRequest(new { message });
             }
         }
 
-        [HttpPost]
-        public async Task<IActionResult> Create([FromBody] Deposit obj)
+        [HttpGet]
+        public async Task<IActionResult> GetDashboardTable(
+            [FromQuery] string key,
+            [FromQuery] DateTime startDate,
+            [FromQuery] DateTime endDate,
+            [FromQuery] int companyID)
         {
             try
             {
-                var userId = GetUserId();
-                if (userId == 0) return BadRequest("Invalid Token");
-
-                var result = await _service.CreateAsync(obj, userId);
+                var result = await _service.LoadTableData(key, startDate, endDate, companyID);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -76,7 +68,7 @@ namespace Sopra.Api.Controllers
                     message = inner.Message;
                     inner = inner.InnerException;
                 }
-                Trace.WriteLine(message, "DepositsController: Create");
+                Trace.WriteLine(message, $"DashboardController: Get {key}");
                 return BadRequest(new { message });
             }
         }

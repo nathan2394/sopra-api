@@ -6,7 +6,6 @@ namespace Sopra.Entities
     [Table(name: "Users")]
     public class User : Entity
     {
-        public long ID { get; set; }
         public long? RefID { get; set; }
         public string? Email { get; set; }
         public string? Password { get; set; }
@@ -26,7 +25,7 @@ namespace Sopra.Entities
         public long? CustomerGroup { get; set; }
         public DateTime? LastLoginDates { get; set; }
         public long? LoginAttempts { get; set; }
-        public long? CompanyID { get; set; }
+        public string? CompanyID { get; set; }
         public string? Subdomain { get; set; }
         public string? FirebaseToken { get; set; }
         [NotMapped]

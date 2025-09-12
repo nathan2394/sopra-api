@@ -3,15 +3,11 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Sopra.Entities
 {
-    [Table(name: "UserLogs")]
-    public class UserLog : Entity
+    [Table(name: "Roles")]
+    public class Role : Entity
     {
         public long ID { get; set; }
-        public long ObjectID { get; set; }
-        public long ModuleID { get; set; }
-        public long UserID { get; set; }
-        public string Description { get; set; }
-        public DateTime TransDate { get; set; }
+        public string Name { get; set; }
         public DateTime? DateIn { get; set; }
         public DateTime? DateUp { get; set; }
         public long? UserIn { get; set; }
