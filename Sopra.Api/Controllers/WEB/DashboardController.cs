@@ -26,11 +26,12 @@ namespace Sopra.Controllers
         public async Task<IActionResult> GetOverview(
             [FromQuery] DateTime startDate,
             [FromQuery] DateTime endDate,
-            [FromQuery] int companyID)
+            [FromQuery] int companyID,
+            [FromQuery] string search)
         {
             try
             {
-                var result = await _service.LoadOverview(startDate, endDate, companyID);
+                var result = await _service.LoadOverview(startDate, endDate, companyID, search);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -52,11 +53,12 @@ namespace Sopra.Controllers
             [FromQuery] string key,
             [FromQuery] DateTime startDate,
             [FromQuery] DateTime endDate,
-            [FromQuery] int companyID)
+            [FromQuery] int companyID,
+            [FromQuery] string search)
         {
             try
             {
-                var result = await _service.LoadTableData(key, startDate, endDate, companyID);
+                var result = await _service.LoadTableData(key, startDate, endDate, companyID, search);
                 return Ok(result);
             }
             catch (Exception ex)
