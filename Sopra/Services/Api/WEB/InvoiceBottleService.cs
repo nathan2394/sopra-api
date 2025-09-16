@@ -135,6 +135,8 @@ namespace Sopra.Services
             try
             {
                 _context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
+                var now = Utility.getCurrentTimestamps();
+
                 //Get data from context Orders join to Users
                 //Users join to Customers 
                 var query = from a in _context.Invoices
@@ -279,7 +281,7 @@ namespace Sopra.Services
 
                     Progress = x.Invoice.Status == "ACTIVE"
                         ? (x.Payment == null
-                        ? x.Invoice.FlagInv == 1 ? (x.Invoice.DueDate != null && x.Invoice.DueDate < Utility.getCurrentTimestamps() ? "expired" : "requested") : "invoiced"
+                        ? x.Invoice.FlagInv == 1 ? (x.Invoice.DueDate != null && x.Invoice.DueDate < now ? "expired" : "requested") : "invoiced"
                             : "paid")
                             : "cancel"
                     };
@@ -303,6 +305,8 @@ namespace Sopra.Services
         {
             try
             {
+                var now = Utility.getCurrentTimestamps();
+                
                 var data = await _context.Invoices
                 .Where(x => x.ID == id && x.IsDeleted == false)
                 .GroupJoin(_context.Payments.Where(p => p.Status != "CANCEL"),
@@ -344,10 +348,10 @@ namespace Sopra.Services
 
                     HandleBy = data.Invoice.Username,
                     Status = data.Invoice.Status,
-                    
+
                     Progress = data.Invoice.Status == "ACTIVE"
                         ? (data.Payment == null
-                        ? data.Invoice.FlagInv == 1 ? (data.Invoice.DueDate != null && data.Invoice.DueDate < Utility.getCurrentTimestamps() ? "expired" : "requested") : "invoiced"
+                        ? data.Invoice.FlagInv == 1 ? (data.Invoice.DueDate != null && data.Invoice.DueDate < now ? "expired" : "requested") : "invoiced"
                         : "paid")
                         : "cancel"
                 };
@@ -369,6 +373,7 @@ namespace Sopra.Services
             try
             {
                 _context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
+                var now = Utility.getCurrentTimestamps();
 
                 var data = from i in _context.Invoices
                     join p in _context.Payments.Where(p => p.Status != "CANCEL") on i.ID equals p.InvoicesID into paymentJoin
@@ -396,7 +401,7 @@ namespace Sopra.Services
 
                     Progress = x.Invoice.Status == "ACTIVE"
                         ? (x.Payment == null
-                        ? x.Invoice.FlagInv == 1 ? (x.Invoice.DueDate != null && x.Invoice.DueDate < Utility.getCurrentTimestamps() ? "expired" : "requested") : "invoiced"
+                        ? x.Invoice.FlagInv == 1 ? (x.Invoice.DueDate != null && x.Invoice.DueDate < now ? "expired" : "requested") : "invoiced"
                         : "paid")
                         : "cancel"
                 }).ToList();
