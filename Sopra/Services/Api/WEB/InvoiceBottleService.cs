@@ -256,30 +256,30 @@ namespace Sopra.Services
                 // Map to DTO
                 var resData = data.Select(x =>
                 {
-                    return new
-                    {
-                        ID = x.Invoice.ID,
-                        RefID = x.Invoice.RefID,
-                        OrdersID = x.Invoice.OrdersID,
-                        VoucherNo = x.Invoice.InvoiceNo,
-                        TransDate = x.Invoice.TransDate,
-                        CustomerName = x.Customer?.Name ?? "",
-                        PaymentMethod = x.Invoice.PaymentMethod,
+                return new
+                {
+                    ID = x.Invoice.ID,
+                    RefID = x.Invoice.RefID,
+                    OrdersID = x.Invoice.OrdersID,
+                    VoucherNo = x.Invoice.InvoiceNo,
+                    TransDate = x.Invoice.TransDate,
+                    CustomerName = x.Customer?.Name ?? "",
+                    PaymentMethod = x.Invoice.PaymentMethod,
 
-                        Refund = x.Invoice.Refund ?? 0,
-                        Bill = x.Invoice.Bill ?? 0,
-                        Netto = x.Invoice.Netto ?? 0,
+                    Refund = x.Invoice.Refund ?? 0,
+                    Bill = x.Invoice.Bill ?? 0,
+                    Netto = x.Invoice.Netto ?? 0,
 
-                        FlagInv = x.Invoice.FlagInv ?? 0,
-                        VANum = x.Invoice.VANum ?? "-",
-                        DueDate = x.Invoice.DueDate,
+                    FlagInv = x.Invoice.FlagInv ?? 0,
+                    VANum = x.Invoice.VANum ?? "-",
+                    DueDate = x.Invoice.DueDate,
 
-                        HandleBy = x.Invoice.Username,
-                        Status = x.Invoice.Status,
+                    HandleBy = x.Invoice.Username,
+                    Status = x.Invoice.Status,
 
-                        Progress = x.Invoice.Status == "ACTIVE"
-                            ? (x.Payment == null
-                            ? (x.Invoice.FlagInv == 1 ? "requested" : "invoiced")
+                    Progress = x.Invoice.Status == "ACTIVE"
+                        ? (x.Payment == null
+                        ? x.Invoice.FlagInv == 1 ? (x.Invoice.DueDate != null && x.Invoice.DueDate < Utility.getCurrentTimestamps() ? "expired" : "requested") : "invoiced"
                             : "paid")
                             : "cancel"
                     };
@@ -347,7 +347,7 @@ namespace Sopra.Services
                     
                     Progress = data.Invoice.Status == "ACTIVE"
                         ? (data.Payment == null
-                        ? (data.Invoice.FlagInv == 1 ? "requested" : "invoiced")
+                        ? data.Invoice.FlagInv == 1 ? (data.Invoice.DueDate != null && data.Invoice.DueDate < Utility.getCurrentTimestamps() ? "expired" : "requested") : "invoiced"
                         : "paid")
                         : "cancel"
                 };
@@ -396,7 +396,7 @@ namespace Sopra.Services
 
                     Progress = x.Invoice.Status == "ACTIVE"
                         ? (x.Payment == null
-                        ? (x.Invoice.FlagInv == 1 ? "requested" : "invoiced")
+                        ? x.Invoice.FlagInv == 1 ? (x.Invoice.DueDate != null && x.Invoice.DueDate < Utility.getCurrentTimestamps() ? "expired" : "requested") : "invoiced"
                         : "paid")
                         : "cancel"
                 }).ToList();
