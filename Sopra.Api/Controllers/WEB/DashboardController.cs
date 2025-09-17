@@ -22,32 +22,6 @@ namespace Sopra.Controllers
             _service = service;
         }
 
-        [HttpGet("Overview")]
-        public async Task<IActionResult> GetOverview(
-            [FromQuery] DateTime startDate,
-            [FromQuery] DateTime endDate,
-            [FromQuery] int companyID,
-            [FromQuery] string search)
-        {
-            try
-            {
-                var result = await _service.LoadOverview(startDate, endDate, companyID, search);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                var message = ex.Message;
-                var inner = ex.InnerException;
-                while (inner != null)
-                {
-                    message = inner.Message;
-                    inner = inner.InnerException;
-                }
-                Trace.WriteLine(message, $"DashboardController: Get Overview");
-                return BadRequest(new { message });
-            }
-        }
-
         [HttpGet]
         public async Task<IActionResult> GetDashboardTable(
             [FromQuery] string key,

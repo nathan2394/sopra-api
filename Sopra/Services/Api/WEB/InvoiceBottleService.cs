@@ -399,6 +399,14 @@ namespace Sopra.Services
 
                     Status = x.Invoice.Status,
 
+                    Payment = x.Payment != null ? new
+                    {
+                        ID = x.Payment.ID,
+                        PaymentNo = x.Payment.PaymentNo,
+                        TransDate = x.Payment.TransDate,
+                        AmtReceive = x.Payment.AmtReceive
+                    } : null,
+
                     Progress = x.Invoice.Status == "ACTIVE"
                         ? (x.Payment == null
                         ? x.Invoice.FlagInv == 1 ? (x.Invoice.DueDate != null && x.Invoice.DueDate < now ? "expired" : "requested") : "invoiced"

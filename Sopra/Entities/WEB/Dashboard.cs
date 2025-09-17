@@ -61,4 +61,16 @@ namespace Sopra.Entities
         public DateTime CancelDate { get; set; }
         public string Reason { get; set; }
     }
+
+    public class TopCustomer
+    {
+        public string CustomerName { get; set; }
+        public long Amount { get; set; }
+    }
+
+    public class TopProduct
+    {
+        public string ProductName { get; set; }
+        public long Quantity { get; set; }
+    }
 }

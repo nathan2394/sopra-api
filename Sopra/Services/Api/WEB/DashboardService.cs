@@ -1,30 +1,23 @@
 using System;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using Microsoft.EntityFrameworkCore;
 using System.Data;
-using System.Data.SqlClient;
 using Sopra.Helpers;
 using Sopra.Responses;
 using Sopra.Entities;
 using System.Diagnostics;
 using System.Linq;
 using System.Text.Json;
+using System.Globalization;
 
 namespace Sopra.Services
 {
     public interface DashboardInterface
     {
-        Task<ListResponse<dynamic>> LoadOverview(
-            DateTime startDate, 
-            DateTime endDate, 
-            int companyID,
-            string search
-        );
         Task<ListResponse<dynamic>> LoadTableData(
-            string key, 
-            DateTime startDate, 
-            DateTime endDate, 
+            string key,
+            DateTime startDate,
+            DateTime endDate,
             int companyID,
             string search
         );
@@ -42,7 +35,7 @@ namespace Sopra.Services
         {
             try
             {
-                var query = $"EXEC spDashboard @Key='{key}', @StartDate='{startDate:yyyy-MM-dd HH:mm:ss}', @EndDate='{endDate:yyyy-MM-dd HH:mm:ss}', @CompanyID={companyID}";
+                var query = $"EXEC spDashboard @Key='{key}', @StartDate='{startDate.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}', @EndDate='{endDate.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}', @CompanyID={companyID}";
                 var result = await Task.Run(() => Utility.SQLGetObjects(query, Utility.SQLDBConnection));
 
                 var dataList = ConvertDataTableToList(result, key);
@@ -51,7 +44,7 @@ namespace Sopra.Services
                 if (!string.IsNullOrEmpty(search))
                 {
                     search = search.ToLowerInvariant();
-                    dataList = dataList.Where((item) => 
+                    dataList = dataList.Where((item) =>
                         JsonSerializer.Serialize(item).ToLowerInvariant().Contains(search)).ToList();
                 }
 
@@ -139,7 +132,7 @@ namespace Sopra.Services
                         });
                     }
                     break;
-                
+
                 case "CANCELED_TRANSACTION":
                     foreach (DataRow row in dataTable.Rows)
                     {
@@ -153,6 +146,28 @@ namespace Sopra.Services
                             CancelBy = row["CancelBy"]?.ToString(),
                             CancelDate = Convert.ToDateTime(row["CancelDate"]),
                             Reason = row["Reason"]?.ToString()
+                        });
+                    }
+                    break;
+
+                case "TOP_CUSTOMER":
+                    foreach (DataRow row in dataTable.Rows)
+                    {
+                        result.Add(new TopCustomer
+                        {
+                            CustomerName = row["CustomerName"]?.ToString(),
+                            Amount = Convert.ToInt64(row["Amount"] ?? 0)
+                        });
+                    }
+                    break;
+
+                case "TOP_PRODUCT":
+                    foreach (DataRow row in dataTable.Rows)
+                    {
+                        result.Add(new TopProduct
+                        {
+                            ProductName = row["ProductName"]?.ToString(),
+                            Quantity = Convert.ToInt64(row["Quantity"] ?? 0)
                         });
                     }
                     break;
@@ -173,26 +188,6 @@ namespace Sopra.Services
             return result;
         }
 
-        public async Task<ListResponse<object>> LoadOverview(
-            DateTime startDate, 
-            DateTime endDate, 
-            int companyID,
-            string search)
-        {
-            try
-            {
-                return await FetchDashboard("COUNT_OVERVIEW", startDate, endDate, companyID, search);
-            }
-            catch (Exception ex)
-            {
-                Trace.WriteLine(ex.Message);
-                if (ex.StackTrace != null)
-                    Trace.WriteLine(ex.StackTrace);
-
-                throw;
-            }
-        }
-        
         public async Task<ListResponse<object>> LoadTableData(
             string key,
             DateTime startDate,
