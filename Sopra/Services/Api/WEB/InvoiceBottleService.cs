@@ -23,6 +23,7 @@ namespace Sopra.Services
     {
         Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
         string filter, string date);
+        Task<dynamic> GetByKeyAsync(string key);
         Task<dynamic> GetByIdAsync(long id);
         Task<ListResponse<dynamic>> GetByOrderIdAsync(long id);
         Task<ListResponse<VATransaction>> GetOutstandingVA(long companyId);
@@ -128,6 +129,59 @@ namespace Sopra.Services
             var docType = "INV";
 
             return $"{company}/{docType}/N/{currentYearString}/{nextNumber:D5}";
+        }
+
+        private async Task<dynamic> getInvoiceDetails(InvoiceDetail data)
+        {
+            var now = Utility.getCurrentTimestamps();
+
+            var invoiceReferences = await _context.Invoices
+                .Where(x => x.OrdersID == data.Invoice.OrdersID &&
+                            x.ID != data.Invoice.ID &&
+                            x.IsDeleted == false)
+                .Select(x => new
+                {
+                    ID = x.ID,
+                    InvoiceNo = x.InvoiceNo,
+                    PaymentMethod = x.PaymentMethod,
+                    Netto = x.Netto
+                })
+                .ToListAsync();
+
+            var resData = new
+            {
+                ID = data.Invoice.ID,
+                RefID = data.Invoice.RefID,
+                OrdersID = data.Invoice.OrdersID,
+                VoucherNo = data.Invoice.InvoiceNo,
+                TransDate = data.Invoice.TransDate,
+                CustomerID = data.Invoice.CustomersID,
+                CustomerName = data.CustomerName,
+                PaymentMethod = data.Invoice.PaymentMethod,
+                CompanyID = data.Invoice.CompaniesID,
+
+                Refund = data.Invoice.Refund ?? 0,
+                Bill = data.Invoice.Bill ?? 0,
+                Netto = data.Invoice.Netto ?? 0,
+
+                FlagInv = data.Invoice.FlagInv ?? 0,
+                VANum = data.Invoice.VANum ?? "-",
+                DueDate = data.Invoice.DueDate,
+
+                HandleBy = data.Invoice.Username,
+                Status = data.Invoice.Status,
+
+                InvoiceReferences = invoiceReferences,
+                PaidDate = data.Payment?.TransDate,
+
+                Progress = data.Invoice.Status == "ACTIVE"
+                    ? (data.Payment == null
+                    ? data.Invoice.FlagInv == 1 ? (data.Invoice.DueDate != null && data.Invoice.DueDate < now ? "expired" : "requested") : "invoiced"
+                    : "paid")
+                    : "cancel"
+            };
+
+            return resData;
         }
 
         public async Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort, string filter, string date)
@@ -258,32 +312,34 @@ namespace Sopra.Services
                 // Map to DTO
                 var resData = data.Select(x =>
                 {
-                return new
-                {
-                    ID = x.Invoice.ID,
-                    RefID = x.Invoice.RefID,
-                    OrdersID = x.Invoice.OrdersID,
-                    VoucherNo = x.Invoice.InvoiceNo,
-                    TransDate = x.Invoice.TransDate,
-                    CustomerName = x.Customer?.Name ?? "",
-                    PaymentMethod = x.Invoice.PaymentMethod,
+                    return new
+                    {
+                        ID = x.Invoice.ID,
+                        RefID = x.Invoice.RefID,
+                        OrdersID = x.Invoice.OrdersID,
+                        VoucherNo = x.Invoice.InvoiceNo,
+                        TransDate = x.Invoice.TransDate,
+                        CustomerName = x.Customer?.Name ?? "",
+                        PaymentMethod = x.Invoice.PaymentMethod,
 
-                    Refund = x.Invoice.Refund ?? 0,
-                    Bill = x.Invoice.Bill ?? 0,
-                    Netto = x.Invoice.Netto ?? 0,
+                        Refund = x.Invoice.Refund ?? 0,
+                        Bill = x.Invoice.Bill ?? 0,
+                        Netto = x.Invoice.Netto ?? 0,
 
-                    FlagInv = x.Invoice.FlagInv ?? 0,
-                    VANum = x.Invoice.VANum ?? "-",
-                    DueDate = x.Invoice.DueDate,
+                        FlagInv = x.Invoice.FlagInv ?? 0,
+                        VANum = x.Invoice.VANum ?? "-",
+                        DueDate = x.Invoice.DueDate,
 
-                    HandleBy = x.Invoice.Username,
-                    Status = x.Invoice.Status,
+                        HandleBy = x.Invoice.Username,
+                        Status = x.Invoice.Status,
 
-                    Progress = x.Invoice.Status == "ACTIVE"
-                        ? (x.Payment == null
-                        ? x.Invoice.FlagInv == 1 ? (x.Invoice.DueDate != null && x.Invoice.DueDate < now ? "expired" : "requested") : "invoiced"
-                            : "paid")
-                            : "cancel"
+                        AttachmentKey = x.Invoice.AttachmentKey,
+
+                        Progress = x.Invoice.Status == "ACTIVE"
+                            ? (x.Payment == null
+                            ? x.Invoice.FlagInv == 1 ? (x.Invoice.DueDate != null && x.Invoice.DueDate < now ? "expired" : "requested") : "invoiced"
+                                : "paid")
+                                : "cancel"
                     };
                 })
                 .Distinct()
@@ -300,20 +356,18 @@ namespace Sopra.Services
                 throw;
             }
         }
-
-        public async Task<dynamic> GetByIdAsync(long id)
+        
+        public async Task<dynamic> GetByKeyAsync(string key)
         {
             try
             {
-                var now = Utility.getCurrentTimestamps();
-                
                 var data = await _context.Invoices
-                .Where(x => x.ID == id && x.IsDeleted == false)
+                .Where(x => x.AttachmentKey == key && x.IsDeleted == false)
                 .GroupJoin(_context.Payments.Where(p => p.Status != "CANCEL"),
                         invoice => invoice.ID,
                         payment => payment.InvoicesID,
                         (invoice, payments) => new { invoice, payment = payments.FirstOrDefault() })
-                .Select(x => new
+                .Select(x => new InvoiceDetail
                 {
                     Invoice = x.invoice,
                     Payment = x.payment,
@@ -325,38 +379,41 @@ namespace Sopra.Services
                 .FirstOrDefaultAsync();
 
                 if (data == null) return null;
+                return await getInvoiceDetails(data);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex.Message);
+                if (ex.StackTrace != null)
+                    Trace.WriteLine(ex.StackTrace);
 
-                var resData = new
+                throw;
+            }
+        }
+
+        public async Task<dynamic> GetByIdAsync(long id)
+        {
+            try
+            {
+                var data = await _context.Invoices
+                .Where(x => x.ID == id && x.IsDeleted == false)
+                .GroupJoin(_context.Payments.Where(p => p.Status != "CANCEL"),
+                        invoice => invoice.ID,
+                        payment => payment.InvoicesID,
+                        (invoice, payments) => new { invoice, payment = payments.FirstOrDefault() })
+                .Select(x => new InvoiceDetail
                 {
-                    ID = data.Invoice.ID,
-                    RefID = data.Invoice.RefID,
-                    OrdersID = data.Invoice.OrdersID,
-                    VoucherNo = data.Invoice.InvoiceNo,
-                    TransDate = data.Invoice.TransDate,
-                    CustomerID = data.Invoice.CustomersID,
-                    CustomerName = data.CustomerName,
-                    PaymentMethod = data.Invoice.PaymentMethod,
-                    CompanyID = data.Invoice.CompaniesID,
+                    Invoice = x.invoice,
+                    Payment = x.payment,
+                    CustomerName = _context.Users
+                        .Where(u => u.RefID == x.invoice.CustomersID)
+                        .Join(_context.Customers, u => u.CustomersID, c => c.RefID, (u, c) => c.Name)
+                        .FirstOrDefault() ?? ""
+                })
+                .FirstOrDefaultAsync();
 
-                    Refund = data.Invoice.Refund ?? 0,
-                    Bill = data.Invoice.Bill ?? 0,
-                    Netto = data.Invoice.Netto ?? 0,
-
-                    FlagInv = data.Invoice.FlagInv ?? 0,
-                    VANum = data.Invoice.VANum ?? "-",
-                    DueDate = data.Invoice.DueDate,
-
-                    HandleBy = data.Invoice.Username,
-                    Status = data.Invoice.Status,
-
-                    Progress = data.Invoice.Status == "ACTIVE"
-                        ? (data.Payment == null
-                        ? data.Invoice.FlagInv == 1 ? (data.Invoice.DueDate != null && data.Invoice.DueDate < now ? "expired" : "requested") : "invoiced"
-                        : "paid")
-                        : "cancel"
-                };
-
-                return resData;
+                if (data == null) return null;
+                return await getInvoiceDetails(data);
             }
             catch (Exception ex)
             {
@@ -523,6 +580,9 @@ namespace Sopra.Services
 
                 await _context.Invoices.AddAsync(invoice);
                 await _context.SaveChangesAsync();
+
+                var attachmentKey = Utility.GenerateAttachmentKey(newInvoiceNo, invoice.ID, invoice.TransDate ?? Utility.getCurrentTimestamps());
+                invoice.AttachmentKey = attachmentKey;
 
                 // INSERT PAYMENT (DEPOSIT)
                 if (invoice.PaymentMethod == 3)

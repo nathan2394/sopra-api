@@ -42,4 +42,11 @@ namespace Sopra.Entities
         public string type { get; set; }
         public long isNew { get; set; }
     }
+
+    public class InvoiceDetail
+    {
+        public Invoice? Invoice { get; set; }
+        public Payment? Payment { get; set; }
+        public string? CustomerName { get; set; }
+    }
 }
