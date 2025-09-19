@@ -64,13 +64,24 @@ namespace Sopra.Entities
 
     public class TopCustomer
     {
+        public long CustomerID { get; set; }
         public string CustomerName { get; set; }
         public long Amount { get; set; }
     }
 
     public class TopProduct
     {
+        public long ProductID { get; set; }
+        public string ProductImage { get; set; }
         public string ProductName { get; set; }
         public long Quantity { get; set; }
+    }
+
+    public class TopPromo
+    {
+        public long PromoID { get; set; }
+        public string PromoImage { get; set; }
+        public string PromoName { get; set; }
+        public long CountOrder { get; set; }
     }
 }

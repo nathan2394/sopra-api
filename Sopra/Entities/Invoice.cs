@@ -42,6 +42,6 @@ namespace Sopra.Entities
         public bool? FutureDateStatus { get; set; }
         public bool? CreditStatus { get; set; }
         public string? ExternalNo { get; set; }
-
+        public string? AttachmentKey { get; set; }
     }
 }

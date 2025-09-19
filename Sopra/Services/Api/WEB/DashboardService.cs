@@ -155,6 +155,7 @@ namespace Sopra.Services
                     {
                         result.Add(new TopCustomer
                         {
+                            CustomerID = Convert.ToInt64(row["CustomerID"] ?? 0),
                             CustomerName = row["CustomerName"]?.ToString(),
                             Amount = Convert.ToInt64(row["Amount"] ?? 0)
                         });
@@ -166,8 +167,23 @@ namespace Sopra.Services
                     {
                         result.Add(new TopProduct
                         {
+                            ProductID = Convert.ToInt64(row["ProductID"] ?? 0),
                             ProductName = row["ProductName"]?.ToString(),
+                            ProductImage = row["ProductImage"]?.ToString(),
                             Quantity = Convert.ToInt64(row["Quantity"] ?? 0)
+                        });
+                    }
+                    break;
+
+                case "TOP_PROMO":
+                    foreach (DataRow row in dataTable.Rows)
+                    {
+                        result.Add(new TopPromo
+                        {
+                            PromoID = Convert.ToInt64(row["PromoID"] ?? 0),
+                            PromoName = row["PromoName"]?.ToString(),
+                            PromoImage = row["PromoImage"]?.ToString(),
+                            CountOrder = Convert.ToInt64(row["CountOrder"] ?? 0)
                         });
                     }
                     break;

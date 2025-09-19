@@ -924,6 +924,7 @@ namespace Sopra.Services
                 obj.Disc1Value = data.DiscAmount;
                 obj.Disc2 = data.Disc2;
                 obj.Disc2Value = data.Disc2Value;
+                obj.DealerTier = data.Dealer;
                 obj.Sfee = data.Sfee;
                 obj.DPP = data.Dpp;
                 obj.TAX = data.Tax;
