@@ -1,45 +1,52 @@
 using System;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using Microsoft.EntityFrameworkCore;
 using System.Data;
-using System.Data.SqlClient;
 using Sopra.Helpers;
 using Sopra.Responses;
 using Sopra.Entities;
 using System.Diagnostics;
+using System.Linq;
+using System.Text.Json;
+using System.Globalization;
 
 namespace Sopra.Services
 {
     public interface DashboardInterface
     {
-        Task<ListResponse<dynamic>> LoadOverview(
-            DateTime startDate, 
-            DateTime endDate, 
-            int companyID
-        );
         Task<ListResponse<dynamic>> LoadTableData(
-            string key, 
-            DateTime startDate, 
-            DateTime endDate, 
-            int companyID
+            string key,
+            DateTime startDate,
+            DateTime endDate,
+            int companyID,
+            string search
         );
     }
 
     public class DashboardService : DashboardInterface
     {
+
         private async Task<ListResponse<object>> FetchDashboard(
             string key,
             DateTime startDate,
             DateTime endDate,
-            int companyID)
+            int companyID,
+            string search)
         {
             try
             {
-                var query = $"EXEC spDashboard @Key='{key}', @StartDate='{startDate:yyyy-MM-dd HH:mm:ss}', @EndDate='{endDate:yyyy-MM-dd HH:mm:ss}', @CompanyID={companyID}";
+                var query = $"EXEC spDashboard @Key='{key}', @StartDate='{startDate.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}', @EndDate='{endDate.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}', @CompanyID={companyID}";
                 var result = await Task.Run(() => Utility.SQLGetObjects(query, Utility.SQLDBConnection));
 
                 var dataList = ConvertDataTableToList(result, key);
+
+                // Searching
+                if (!string.IsNullOrEmpty(search))
+                {
+                    search = search.ToLowerInvariant();
+                    dataList = dataList.Where((item) =>
+                        JsonSerializer.Serialize(item).ToLowerInvariant().Contains(search)).ToList();
+                }
 
                 return new ListResponse<dynamic>(dataList, dataList.Count, 0);
             }
@@ -69,6 +76,7 @@ namespace Sopra.Services
                             Amount = Convert.ToInt64(row["Amount"] ?? 0),
                             Count = Convert.ToInt64(row["Count"] ?? 0),
                             Color = row["Color"]?.ToString(),
+                            Unit = row["Unit"]?.ToString()
                         });
                     }
                     break;
@@ -78,6 +86,7 @@ namespace Sopra.Services
                     {
                         result.Add(new PendingOrder
                         {
+                            OrderID = Convert.ToInt64(row["OrderID"] ?? 0),
                             OrderNo = row["OrderNo"]?.ToString(),
                             OrderDate = Convert.ToDateTime(row["OrderDate"]),
                             CustomerName = row["CustomerName"]?.ToString(),
@@ -92,11 +101,13 @@ namespace Sopra.Services
                     {
                         result.Add(new OngoingInvoice
                         {
-                            OrderNo = row["InvoiceNo"]?.ToString(),
-                            OrderDate = Convert.ToDateTime(row["InvoiceDate"]),
+                            InvoiceID = Convert.ToInt64(row["InvoiceID"] ?? 0),
+                            InvoiceNo = row["InvoiceNo"]?.ToString(),
+                            InvoiceDate = Convert.ToDateTime(row["InvoiceDate"]),
                             CustomerName = row["CustomerName"]?.ToString(),
                             Amount = Convert.ToInt64(row["Amount"] ?? 0),
-                            HandleBy = row["HandleBy"]?.ToString()
+                            HandleBy = row["HandleBy"]?.ToString(),
+                            DueDate = Convert.ToDateTime(row["DueDate"])
                         });
                     }
                     break;
@@ -104,15 +115,76 @@ namespace Sopra.Services
                 case "PAID_ORDER":
                     foreach (DataRow row in dataTable.Rows)
                     {
-                        result.Add(new
+                        result.Add(new PaidOrder
                         {
+                            OrderID = Convert.ToInt64(row["OrderID"] ?? 0),
                             OrderNo = row["OrderNo"]?.ToString(),
                             OrderDate = Convert.ToDateTime(row["OrderDate"]),
+                            InvoiceID = Convert.ToInt64(row["InvoiceID"] ?? 0),
                             InvoiceNo = row["InvoiceNo"]?.ToString(),
                             InvoiceDate = Convert.ToDateTime(row["InvoiceDate"]),
+                            PaymentID = Convert.ToInt64(row["PaymentID"] ?? 0),
+                            PaymentNo = row["PaymentNo"]?.ToString(),
+                            PaymentDate = Convert.ToDateTime(row["PaymentDate"]),
                             CustomerName = row["CustomerName"]?.ToString(),
                             Amount = Convert.ToInt64(row["Amount"] ?? 0),
                             HandleBy = row["HandleBy"]?.ToString()
+                        });
+                    }
+                    break;
+
+                case "CANCELED_TRANSACTION":
+                    foreach (DataRow row in dataTable.Rows)
+                    {
+                        result.Add(new CanceledTransaction
+                        {
+                            OrderID = Convert.ToInt64(row["OrderID"] ?? 0),
+                            OrderNo = row["OrderNo"]?.ToString(),
+                            OrderDate = Convert.ToDateTime(row["OrderDate"]),
+                            CustomerName = row["CustomerName"]?.ToString(),
+                            Amount = Convert.ToInt64(row["Amount"] ?? 0),
+                            CancelBy = row["CancelBy"]?.ToString(),
+                            CancelDate = Convert.ToDateTime(row["CancelDate"]),
+                            Reason = row["Reason"]?.ToString()
+                        });
+                    }
+                    break;
+
+                case "TOP_CUSTOMER":
+                    foreach (DataRow row in dataTable.Rows)
+                    {
+                        result.Add(new TopCustomer
+                        {
+                            CustomerID = Convert.ToInt64(row["CustomerID"] ?? 0),
+                            CustomerName = row["CustomerName"]?.ToString(),
+                            CountOrder = Convert.ToInt64(row["CountOrder"] ?? 0),
+                            Amount = Convert.ToInt64(row["Amount"] ?? 0)
+                        });
+                    }
+                    break;
+
+                case "TOP_PRODUCT":
+                    foreach (DataRow row in dataTable.Rows)
+                    {
+                        result.Add(new TopProduct
+                        {
+                            ProductID = Convert.ToInt64(row["ProductID"] ?? 0),
+                            ProductName = row["ProductName"]?.ToString(),
+                            ProductImage = row["ProductImage"]?.ToString(),
+                            Quantity = Convert.ToInt64(row["Quantity"] ?? 0)
+                        });
+                    }
+                    break;
+
+                case "TOP_PROMO":
+                    foreach (DataRow row in dataTable.Rows)
+                    {
+                        result.Add(new TopPromo
+                        {
+                            PromoID = Convert.ToInt64(row["PromoID"] ?? 0),
+                            PromoName = row["PromoName"]?.ToString(),
+                            PromoImage = row["PromoImage"]?.ToString(),
+                            CountOrder = Convert.ToInt64(row["CountOrder"] ?? 0)
                         });
                     }
                     break;
@@ -133,34 +205,16 @@ namespace Sopra.Services
             return result;
         }
 
-        public async Task<ListResponse<object>> LoadOverview(
-            DateTime startDate, 
-            DateTime endDate, 
-            int companyID)
-        {
-            try
-            {
-                return await FetchDashboard("COUNT_OVERVIEW", startDate, endDate, companyID);
-            }
-            catch (Exception ex)
-            {
-                Trace.WriteLine(ex.Message);
-                if (ex.StackTrace != null)
-                    Trace.WriteLine(ex.StackTrace);
-
-                throw;
-            }
-        }
-        
         public async Task<ListResponse<object>> LoadTableData(
             string key,
             DateTime startDate,
             DateTime endDate,
-            int companyID)
+            int companyID,
+            string search)
         {
             try
             {
-                return await FetchDashboard(key, startDate, endDate, companyID);
+                return await FetchDashboard(key, startDate, endDate, companyID, search);
             }
             catch (Exception ex)
             {

@@ -548,10 +548,10 @@ namespace Sopra.Services
                 }).ToList();
 
                 await _context.Invoices.Where(i => i.OrdersID == invoice.OrdersID && i.IsDeleted == false && i.Status == "ACTIVE")
-                    .ForEachAsync(i => { i.Status = "CANCEL"; i.DateUp = now; i.UserUp = userId; });
+                    .ForEachAsync(i => { i.Status = "CANCEL"; i.ReasonsID = reason; i.DateUp = now; i.UserUp = userId; });
 
                 await _context.Orders.Where(o => o.ID == invoice.OrdersID && o.IsDeleted == false && o.OrderStatus == "ACTIVE")
-                    .ForEachAsync(o => { o.OrderStatus = "CANCEL"; o.DateUp = now; o.UserUp = userId; });
+                    .ForEachAsync(o => { o.OrderStatus = "CANCEL"; o.ReasonsID = reason; o.DateUp = now; o.UserUp = userId; });
 
                 await _context.Deposit.AddRangeAsync(deposits);
                 await _context.UserLogs.AddRangeAsync(logs);

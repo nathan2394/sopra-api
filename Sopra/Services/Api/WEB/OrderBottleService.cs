@@ -190,46 +190,60 @@ namespace Sopra.Services
                         ClosureItems = closureItems
                     };
                 }).ToList();
+                
+            var mixItems = new List<MixItem>();
+            // if (isRecreate == true)
+            // {
+            //     var currentPromo = _context.Promos
+            //     .Where(x => )
 
-            var mixItems = allMixItems
-                .Where(x => x.ObjectType == "bottle")
-                .Select(y =>
-                {
-                    var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
 
-                    var closureItems = allMixItems
-                        .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
-                        .Join(productItems.Where(p => p.Type == "closure"),
-                            c => c.ObjectID,
-                            p => p.RefID,
-                            (c, p) => new ClosureItem
-                            {
-                                Id = c.ID,
-                                WmsCode = p.WmsCode,
-                                ProductsId = c.ObjectID,
-                                Name = p.Name,
-                                Qty = c.Qty,
-                                QtyBox = c.QtyBox,
-                                Price = c.ProductPrice,
-                                Amount = c.Amount
-                            }).ToList();
+            //     if (currentPromo != null) {
 
-                    return new MixItem
+            //     }
+            // }
+            // else
+            // {
+                mixItems = allMixItems
+                    .Where(x => x.ObjectType == "bottle")
+                    .Select(y =>
                     {
-                        Id = y.ID,
-                        ProductsId = y.ObjectID,
-                        PromoId = y.PromosID,
-                        WmsCode = currentBottle?.WmsCode,
-                        Name = currentBottle?.Name,
-                        Qty = y.Qty,
-                        QtyBox = y.QtyBox,
-                        Price = y.ProductPrice,
-                        Amount = y.Amount,
-                        Notes = y.Note,
-                        ApprovalStatus = y.ApprovalStatus,
-                        ClosureItems = closureItems
-                    };
-                }).ToList();
+                        var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
+
+                        var closureItems = allMixItems
+                            .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
+                            .Join(productItems.Where(p => p.Type == "closure"),
+                                c => c.ObjectID,
+                                p => p.RefID,
+                                (c, p) => new ClosureItem
+                                {
+                                    Id = c.ID,
+                                    WmsCode = p.WmsCode,
+                                    ProductsId = c.ObjectID,
+                                    Name = p.Name,
+                                    Qty = c.Qty,
+                                    QtyBox = c.QtyBox,
+                                    Price = c.ProductPrice,
+                                    Amount = c.Amount
+                                }).ToList();
+
+                        return new MixItem
+                        {
+                            Id = y.ID,
+                            ProductsId = y.ObjectID,
+                            PromoId = y.PromosID,
+                            WmsCode = currentBottle?.WmsCode,
+                            Name = currentBottle?.Name,
+                            Qty = y.Qty,
+                            QtyBox = y.QtyBox,
+                            Price = y.ProductPrice,
+                            Amount = y.Amount,
+                            Notes = y.Note,
+                            ApprovalStatus = y.ApprovalStatus,
+                            ClosureItems = closureItems
+                        };
+                    }).ToList();
+            // }
 
             if (data.Total == null)
             {
@@ -924,6 +938,7 @@ namespace Sopra.Services
                 obj.Disc1Value = data.DiscAmount;
                 obj.Disc2 = data.Disc2;
                 obj.Disc2Value = data.Disc2Value;
+                obj.DealerTier = data.Dealer;
                 obj.Sfee = data.Sfee;
                 obj.DPP = data.Dpp;
                 obj.TAX = data.Tax;
