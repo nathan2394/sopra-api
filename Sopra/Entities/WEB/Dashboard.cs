@@ -66,6 +66,7 @@ namespace Sopra.Entities
     {
         public long CustomerID { get; set; }
         public string CustomerName { get; set; }
+        public long CountOrder { get; set; }
         public long Amount { get; set; }
     }
 
