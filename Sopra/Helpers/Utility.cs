@@ -271,49 +271,33 @@ namespace Sopra.Helpers
             }
         }
 
-        public static DataTable SQLGetObjects(string cmdText, SqlConnection conn)
+        public static DataTable SQLGetObjects(string cmdText, SqlConnection conn = null)
         {
-            if (SQLDBConnection == null)
-            {
-                var config = Utility.GetConfig();
-                Utility.ConnectSQL(config["SQL:Server"], config["SQL:Database"], config["SQL:UserID"], config["SQL:Password"]);
-            }
-
-            if (conn == null)
-                conn = SQLDBConnection;
-
-            var flag = false;
-            var cmd = (SqlCommand)null;
             try
             {
-                if (conn.State != ConnectionState.Open)
+                var config = Utility.GetConfig();
+                string connectionString = string.Format(
+                    "Server={0};Database={1};User Id={2};Password={3};",
+                    config["SQL:Server"], 
+                    config["SQL:Database"], 
+                    config["SQL:UserID"], 
+                    config["SQL:Password"]
+                );
+
+                using (var localConn = new SqlConnection(connectionString))
                 {
-                    conn.Open();
-                    flag = true;
+                    localConn.Open();
+                    using (var adapter = new SqlDataAdapter(cmdText, localConn))
+                    {
+                        var result = new DataTable();
+                        adapter.Fill(result);
+                        return result;
+                    }
                 }
-
-                cmd = new SqlCommand();
-                cmd.Connection = conn;
-                cmd.CommandText = cmdText;
-
-                var readersearch = cmd.ExecuteReader();
-                var result = new DataTable();
-
-                result.Load(readersearch);
-                readersearch.Close();
-
-                return result;
             }
-            catch (Exception)
+            catch
             {
                 throw;
-            }
-            finally
-            {
-                if (flag)
-                    conn.Close();
-                if (cmd != null)
-                    cmd.Dispose();
             }
         }
         #endregion

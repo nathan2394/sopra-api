@@ -157,6 +157,7 @@ namespace Sopra.Services
                         {
                             CustomerID = Convert.ToInt64(row["CustomerID"] ?? 0),
                             CustomerName = row["CustomerName"]?.ToString(),
+                            CountOrder = Convert.ToInt64(row["CountOrder"] ?? 0),
                             Amount = Convert.ToInt64(row["Amount"] ?? 0)
                         });
                     }
