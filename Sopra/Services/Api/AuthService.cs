@@ -287,7 +287,6 @@ namespace Sopra.Services
 				}
 
 				var now = Helpers.Utility.getCurrentTimestamps();
-				user.Password = "";
 				user.LastLoginDates = now;
 
 				var userDealer = this.context.UserDealers.Where(x => x.UserId == user.RefID && now < x.EndDate).FirstOrDefault();
@@ -340,7 +339,6 @@ namespace Sopra.Services
 		{
 			try
 			{
-				// Step 1: Exchange authorization code for access token
 				var tokenResponse = await ExchangeZohoCodeForToken(authorizationCode, redirectUri);
 				if (tokenResponse == null)
 				{
@@ -348,7 +346,6 @@ namespace Sopra.Services
 					return null;
 				}
 
-				// Step 2: Get user info from Zoho
 				var zohoUser = await GetZohoUserInfo(tokenResponse.AccessToken);
 				if (zohoUser == null)
 				{
@@ -365,7 +362,6 @@ namespace Sopra.Services
 				}
 
 				var now = Helpers.Utility.getCurrentTimestamps();
-				user.Password = "";
 				user.LastLoginDates = now;
 
 				var userDealer = this.context.UserDealers.Where(x => x.UserId == user.RefID && now < x.EndDate).FirstOrDefault();
