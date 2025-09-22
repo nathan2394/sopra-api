@@ -23,6 +23,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Identity.Client;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+
 
 namespace Sopra.Services
 {
@@ -56,7 +58,7 @@ namespace Sopra.Services
 				{
 					throw new ArgumentException("Sorry your account has been locked, please try again in 5 Minutes !");
 				}
-				
+
 				user.LastLoginDates = currentTime;
 
 				if (!Helpers.Utility.VerifyHashedPassword(user.Password, password))
@@ -65,7 +67,7 @@ namespace Sopra.Services
 					context.SaveChanges();
 
 					var remainingAttempts = 5 - user.LoginAttempts.Value;
-					throw new ArgumentException(remainingAttempts > 0 
+					throw new ArgumentException(remainingAttempts > 0
 						? $"The password you entered is incorrect, you have {remainingAttempts} more chances."
 						: "Sorry your account has been locked, please try again in 5 Minutes!");
 				}
@@ -74,15 +76,15 @@ namespace Sopra.Services
 				user.LastLoginDates = currentTime;
 
 				var userDealer = this.context.UserDealers.Where(x => x.UserId == user.RefID && currentTime < x.EndDate).FirstOrDefault();
-				if (userDealer != null) 
+				if (userDealer != null)
 					user.Dealer = this.context.Dealers.FirstOrDefault(x => x.RefID == userDealer.DealerId);
 
 				var customer = this.context.Customers.FirstOrDefault(x => x.RefID == user.CustomersID);
-				if (customer != null) 
+				if (customer != null)
 					user.Customer = customer;
 
 				context.SaveChanges();
-				
+
 				return user;
 			}
 			catch (Exception ex)
@@ -109,9 +111,9 @@ namespace Sopra.Services
 
 			if (user.LastLoginDates == null)
 				return user.LoginAttempts >= maxAttempts;
-			
+
 			TimeSpan LastAttemptDiff = currentTime - user.LastLoginDates.Value;
-			
+
 			if (LastAttemptDiff.TotalMinutes >= lockoutMinutes)
 			{
 				user.LoginAttempts = 0;
@@ -122,39 +124,39 @@ namespace Sopra.Services
 			return true;
 		}
 
-        public async Task<AuthResponse> UserAuthenticate(string email,  string firebaseToken)
-        {
+		public async Task<AuthResponse> UserAuthenticate(string email, string firebaseToken)
+		{
 
-            var saveToken = await this.context.Users
-                .Where(x => x.Email == email && x.IsDeleted != true)
-                .FirstOrDefaultAsync();
+			var saveToken = await this.context.Users
+				.Where(x => x.Email == email && x.IsDeleted != true)
+				.FirstOrDefaultAsync();
 
-            saveToken.FirebaseToken = firebaseToken;
+			saveToken.FirebaseToken = firebaseToken;
 
-            await this.context.SaveChangesAsync();
+			await this.context.SaveChangesAsync();
 
 			var user = await this.context.Users.FirstOrDefaultAsync(x => x.Email == email);
 
 			if (user == null)
-                return null;
+				return null;
 
-            user.Password = string.Empty;
+			user.Password = string.Empty;
 
-            var token = GenerateToken(user);
+			var token = GenerateToken(user);
 
-            var response = new AuthResponse(user, token);
+			var response = new AuthResponse(user, token);
 
-            return response;
-        }
+			return response;
+		}
 
-        public async Task<AuthenticationOTPRequest> AuthenticateOTP(string phone, string ipAddress)
+		public async Task<AuthenticationOTPRequest> AuthenticateOTP(string phone, string ipAddress)
 		{
 			if (phone.StartsWith("62")) phone = phone.Replace("62", "0");
 			else if (phone.StartsWith("8")) phone = "0" + phone;
-            var query = from a in context.Users
+			var query = from a in context.Users
 						join b in context.Customers
-						on a.CustomersID equals b.RefID 
-						where b.Mobile1 == phone 
+						on a.CustomersID equals b.RefID
+						where b.Mobile1 == phone
 						&& a.IsDeleted == false
 						&& b.IsDeleted == false
 						&& b.Status == 1
@@ -196,7 +198,7 @@ namespace Sopra.Services
 				context.Dispose();
 			}
 		}
-		
+
 		public User AuthenticateVerifyOTP(string code, string ipAddress)
 		{
 			var query = from a in context.Users
@@ -278,19 +280,17 @@ namespace Sopra.Services
 				}
 
 				var user = context.Users.FirstOrDefault(x => x.Email == googleUser.Email && x.IsDeleted == false);
-				
+
 				if (user == null)
 				{
 					return null;
 				}
 
-				DateTime utcNow = DateTime.UtcNow;
-				TimeZoneInfo gmtPlus7 = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
-				DateTime gmtPlus7Time = TimeZoneInfo.ConvertTimeFromUtc(utcNow, gmtPlus7);
-
+				var now = Helpers.Utility.getCurrentTimestamps();
 				user.Password = "";
+				user.LastLoginDates = now;
 
-				var userDealer = this.context.UserDealers.Where(x => x.UserId == user.RefID && gmtPlus7Time < x.EndDate).FirstOrDefault();
+				var userDealer = this.context.UserDealers.Where(x => x.UserId == user.RefID && now < x.EndDate).FirstOrDefault();
 				if (userDealer != null) user.Dealer = this.context.Dealers.FirstOrDefault(x => x.RefID == userDealer.DealerId);
 
 				var customer = this.context.Customers.FirstOrDefault(x => x.RefID == user.CustomersID);
@@ -316,7 +316,7 @@ namespace Sopra.Services
 			try
 			{
 				var googleClientId = config.GetSection("GoogleAuth")["ClientId"];
-				
+
 				var payload = await GoogleJsonWebSignature.ValidateAsync(token, new GoogleJsonWebSignature.ValidationSettings()
 				{
 					Audience = new[] { googleClientId }
@@ -332,6 +332,147 @@ namespace Sopra.Services
 			catch (Exception ex)
 			{
 				Trace.WriteLine($"Google token verification failed: {ex.Message}");
+				return null;
+			}
+		}
+
+		public async Task<User> AuthenticateWithZoho(string authorizationCode, string redirectUri, string ipAddress)
+		{
+			try
+			{
+				// Step 1: Exchange authorization code for access token
+				var tokenResponse = await ExchangeZohoCodeForToken(authorizationCode, redirectUri);
+				if (tokenResponse == null)
+				{
+					Trace.WriteLine("Failed to exchange Zoho authorization code for token");
+					return null;
+				}
+
+				// Step 2: Get user info from Zoho
+				var zohoUser = await GetZohoUserInfo(tokenResponse.AccessToken);
+				if (zohoUser == null)
+				{
+					Trace.WriteLine("Failed to get user info from Zoho");
+					return null;
+				}
+
+				var user = context.Users.FirstOrDefault(x => x.Email == zohoUser.Email && x.IsDeleted == false);
+
+				if (user == null)
+				{
+					Trace.WriteLine($"No user found with email: {zohoUser.Email}");
+					return null;
+				}
+
+				var now = Helpers.Utility.getCurrentTimestamps();
+				user.Password = "";
+				user.LastLoginDates = now;
+
+				var userDealer = this.context.UserDealers.Where(x => x.UserId == user.RefID && now < x.EndDate).FirstOrDefault();
+				if (userDealer != null)
+					user.Dealer = this.context.Dealers.FirstOrDefault(x => x.RefID == userDealer.DealerId);
+
+				var customer = this.context.Customers.FirstOrDefault(x => x.RefID == user.CustomersID);
+				if (customer != null)
+					user.Customer = customer;
+
+				context.SaveChanges();
+
+				return user;
+			}
+			catch (Exception ex)
+			{
+				Trace.WriteLine($"Zoho authentication error: {ex.Message}");
+				if (ex.StackTrace != null)
+					Trace.WriteLine(ex.StackTrace);
+				return null;
+			}
+		}
+
+		private async Task<ZohoTokenResponse> ExchangeZohoCodeForToken(string code, string redirectUri)
+		{
+			try
+			{
+				var clientId = config.GetSection("ZohoAuth")["ClientId"];
+				var clientSecret = config.GetSection("ZohoAuth")["ClientSecret"];
+				
+				if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+				{
+					Trace.WriteLine("Zoho ClientId or ClientSecret not configured");
+					return null;
+				}
+
+				var tokenEndpoint = "https://accounts.zoho.com/oauth/v2/token";
+				
+				var parameters = new Dictionary<string, string>
+				{
+					["grant_type"] = "authorization_code",
+					["client_id"] = clientId,
+					["client_secret"] = clientSecret,
+					["redirect_uri"] = redirectUri,
+					["code"] = code
+				};
+
+				using (var client = new HttpClient())
+				{
+					var content = new FormUrlEncodedContent(parameters);
+					var response = await client.PostAsync(tokenEndpoint, content);
+
+					if (!response.IsSuccessStatusCode)
+					{
+						var errorContent = await response.Content.ReadAsStringAsync();
+						Trace.WriteLine($"Zoho token exchange failed: {response.StatusCode} - {errorContent}");
+						return null;
+					}
+
+					var responseContent = await response.Content.ReadAsStringAsync();
+					var options = new JsonSerializerOptions
+					{
+						PropertyNameCaseInsensitive = true
+					};
+					
+					return JsonSerializer.Deserialize<ZohoTokenResponse>(responseContent, options);
+				}
+			}
+			catch (Exception ex)
+			{
+				Trace.WriteLine($"Error exchanging Zoho code for token: {ex.Message}");
+				return null;
+			}
+		}
+
+		private async Task<ZohoUserInfo> GetZohoUserInfo(string accessToken)
+		{
+			try
+			{
+				var userInfoEndpoint = "https://accounts.zoho.com/oauth/user/info";
+				
+				using (var client = new HttpClient())
+				{
+					var request = new HttpRequestMessage(HttpMethod.Get, userInfoEndpoint);
+					request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+					var response = await client.SendAsync(request);
+
+					if (!response.IsSuccessStatusCode)
+					{
+						var errorContent = await response.Content.ReadAsStringAsync();
+						Trace.WriteLine($"Zoho user info fetch failed: {response.StatusCode} - {errorContent}");
+						return null;
+					}
+
+					var responseContent = await response.Content.ReadAsStringAsync();
+					var options = new JsonSerializerOptions
+					{
+						PropertyNameCaseInsensitive = true
+					};
+					
+					return JsonSerializer.Deserialize<ZohoUserInfo>(responseContent, options);
+				}
+			}
+			catch (Exception ex)
+			{
+				Trace.WriteLine($"Error fetching Zoho user info: {ex.Message}");
 				return null;
 			}
 		}
@@ -415,8 +556,8 @@ namespace Sopra.Services
 						var tokenContent = await tokenResponse.Content.ReadAsStringAsync();
 						var token = JsonSerializer.Deserialize<TokenResponse>(tokenContent);
 
-                        // Prepare OTP message data
-                        var templateId = "7bc159f1-349d-4ede-859c-a4b61ed6cb73";
+						// Prepare OTP message data
+						var templateId = "7bc159f1-349d-4ede-859c-a4b61ed6cb73";
 						var channelId = "1a354b7e-d46b-470b-a8e7-9e5841e48b1b";
 						var sendMessageUrl = "https://service-chat.qontak.com/api/open/v1/broadcasts/whatsapp/direct";
 
@@ -434,10 +575,10 @@ namespace Sopra.Services
 									new { key = "1", value_text = otp, value = "10" }
 								},
 								buttons = new[]
-                                {
-                                    new { index = "0", type = "URL", value = otp }
-                                }
-                            }
+								{
+									new { index = "0", type = "URL", value = otp }
+								}
+							}
 						};
 
 						// Log message body
@@ -483,7 +624,7 @@ namespace Sopra.Services
 						// Log failure or handle as needed
 					}
 				}
-					
+
 			}
 			catch (Exception ex)
 			{
