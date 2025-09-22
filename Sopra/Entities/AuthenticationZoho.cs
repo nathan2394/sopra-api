@@ -39,7 +39,7 @@ namespace Sopra.Entities
         public string LastName { get; set; }
         
         [JsonPropertyName("ZUID")]
-        public string UserId { get; set; }
+        public long UserId { get; set; }
         
         [JsonPropertyName("profile_picture")]
         public string ProfilePicture { get; set; }
