@@ -84,6 +84,44 @@ namespace Sopra.Api.Controllers
 			}
 		}
 
+		[HttpPost("zoho-login")]
+		public async Task<IActionResult> ZohoLogin([FromBody] ZohoLoginRequest request)
+		{
+			try
+			{
+				if (string.IsNullOrEmpty(request.Code))
+				{
+					return BadRequest(new { message = "Authorization code is required" });
+				}
+
+				if (string.IsNullOrEmpty(request.RedirectUri))
+				{
+					return BadRequest(new { message = "Redirect URI is required" });
+				}
+
+				var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+
+				var user = await _service.AuthenticateWithZoho(request.Code, request.RedirectUri, ipAddress);
+				if (user == null)
+				{
+					return BadRequest(new { message = "User can't be found" });
+				}
+
+				var token = _service.GenerateToken(user);
+				
+				return Ok(new 
+				{ 
+					data = user, 
+					token = token,
+				});
+			}
+			catch (Exception ex)
+			{
+				Trace.WriteLine($"Zoho login endpoint error: {ex.Message}");
+				return StatusCode(500, new { message = "Internal server error during Zoho authentication" });
+			}
+		}
+
 		[HttpPost("login/otp")]
 		public async Task<IActionResult> AuthenticateOTP([FromQuery(Name = "phone")] string phone)
 		{
