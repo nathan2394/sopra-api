@@ -131,7 +131,7 @@ namespace Sopra.Services
             }
         }
 
-        private async Task<OrderBottleDto> getOrderDetails(Order data, Boolean isRecreate)
+        private async Task<OrderBottleDto> getOrderDetails(Order data)
         {
             var allRegulerItems = await _context.OrderDetails
                 .Where(x => x.OrdersID == data.ID && x.Type == "Reguler")
@@ -191,199 +191,45 @@ namespace Sopra.Services
                     };
                 }).ToList();
                 
-            var mixItems = new List<MixItem>();
-            if (isRecreate == true)
-            {
-                var promoId = allMixItems.FirstOrDefault()?.PromosID;
-                if (promoId != null)
+            var mixItems = allMixItems
+                .Where(x => x.ObjectType == "bottle")
+                .Select(y =>
                 {
-                    var currentPromo = await _context.Promos
-                        .FirstOrDefaultAsync(x => x.ID == promoId);
+                    var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
 
-                    if (currentPromo != null)
-                    {
-                        var now = Utility.getCurrentTimestamps();
-                        if (currentPromo.StartDate <= now && currentPromo.EndDate >= now)
-                        {
-                            mixItems = allMixItems
-                                .Where(x => x.ObjectType == "bottle")
-                                .Select(y =>
-                                {
-                                    var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
-
-                                    var closureItems = allMixItems
-                                        .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
-                                        .Join(productItems.Where(p => p.Type == "closure"),
-                                            c => c.ObjectID,
-                                            p => p.RefID,
-                                            (c, p) => new ClosureItem
-                                            {
-                                                Id = c.ID,
-                                                WmsCode = p.WmsCode,
-                                                ProductsId = c.ObjectID,
-                                                Name = p.Name,
-                                                Qty = c.Qty,
-                                                QtyBox = c.QtyBox,
-                                                Price = c.ProductPrice,
-                                                Amount = c.Amount
-                                            }).ToList();
-
-                                    return new MixItem
-                                    {
-                                        Id = y.ID,
-                                        ProductsId = y.ObjectID,
-                                        PromoId = y.PromosID,
-                                        WmsCode = currentBottle?.WmsCode,
-                                        Name = currentBottle?.Name,
-                                        Qty = y.Qty,
-                                        QtyBox = y.QtyBox,
-                                        Price = y.ProductPrice,
-                                        Amount = y.Amount,
-                                        Notes = y.Note,
-                                        ApprovalStatus = y.ApprovalStatus,
-                                        ClosureItems = closureItems
-                                    };
-                                }).ToList();
-                        }
-                        else
-                        {
-                            var newPromo = await _context.Promos
-                                .Where(x => x.Name == currentPromo.Name &&
-                                            x.StartDate <= now &&
-                                            x.EndDate >= now)
-                                .OrderByDescending(x => x.ID)
-                                .FirstOrDefaultAsync();
-
-                            if (newPromo != null)
+                    var closureItems = allMixItems
+                        .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
+                        .Join(productItems.Where(p => p.Type == "closure"),
+                            c => c.ObjectID,
+                            p => p.RefID,
+                            (c, p) => new ClosureItem
                             {
-                                mixItems = allMixItems
-                                .Where(x => x.ObjectType == "bottle")
-                                .Select(y =>
-                                {
-                                    var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
+                                Id = c.ID,
+                                WmsCode = p.WmsCode,
+                                ProductsId = c.ObjectID,
+                                Name = p.Name,
+                                Qty = c.Qty,
+                                QtyBox = c.QtyBox,
+                                Price = c.ProductPrice,
+                                Amount = c.Amount
+                            }).ToList();
 
-                                    var closureItems = allMixItems
-                                        .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
-                                        .Join(productItems.Where(p => p.Type == "closure"),
-                                            c => c.ObjectID,
-                                            p => p.RefID,
-                                            (c, p) => new ClosureItem
-                                            {
-                                                Id = c.ID,
-                                                WmsCode = p.WmsCode,
-                                                ProductsId = c.ObjectID,
-                                                Name = p.Name,
-                                                Qty = c.Qty,
-                                                QtyBox = c.QtyBox,
-                                                Price = c.ProductPrice,
-                                                Amount = c.Amount
-                                            }).ToList();
-
-                                    return new MixItem
-                                    {
-                                        Id = y.ID,
-                                        ProductsId = y.ObjectID,
-                                        PromoId = newPromo.ID,
-                                        WmsCode = currentBottle?.WmsCode,
-                                        Name = currentBottle?.Name,
-                                        Qty = y.Qty,
-                                        QtyBox = y.QtyBox,
-                                        Price = y.ProductPrice,
-                                        Amount = y.Amount,
-                                        Notes = y.Note,
-                                        ApprovalStatus = y.ApprovalStatus,
-                                        ClosureItems = closureItems
-                                    };
-                                }).ToList();
-                            }
-                            else
-                            {
-                                mixItems = allMixItems
-                                    .Where(x => x.ObjectType == "bottle")
-                                    .Select(y =>
-                                    {
-                                        var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
-
-                                        var closureItems = allMixItems
-                                            .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
-                                            .Join(productItems.Where(p => p.Type == "closure"),
-                                                c => c.ObjectID,
-                                                p => p.RefID,
-                                                (c, p) => new ClosureItem
-                                                {
-                                                    Id = c.ID,
-                                                    WmsCode = p.WmsCode,
-                                                    ProductsId = c.ObjectID,
-                                                    Name = p.Name,
-                                                    Qty = c.Qty,
-                                                    QtyBox = c.QtyBox,
-                                                    Price = c.ProductPrice,
-                                                    Amount = c.Amount
-                                                }).ToList();
-
-                                        return new MixItem
-                                        {
-                                            Id = y.ID,
-                                            ProductsId = y.ObjectID,
-                                            PromoId = y.PromosID,
-                                            WmsCode = currentBottle?.WmsCode,
-                                            Name = currentBottle?.Name,
-                                            Qty = y.Qty,
-                                            QtyBox = y.QtyBox,
-                                            Price = y.ProductPrice,
-                                            Amount = y.Amount,
-                                            Notes = y.Note,
-                                            ApprovalStatus = y.ApprovalStatus,
-                                            ClosureItems = closureItems
-                                        };
-                                    }).ToList();
-                            }
-                        }
-                    }
-                }
-            }
-            else
-            {
-                mixItems = allMixItems
-                    .Where(x => x.ObjectType == "bottle")
-                    .Select(y =>
+                    return new MixItem
                     {
-                        var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
-
-                        var closureItems = allMixItems
-                            .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
-                            .Join(productItems.Where(p => p.Type == "closure"),
-                                c => c.ObjectID,
-                                p => p.RefID,
-                                (c, p) => new ClosureItem
-                                {
-                                    Id = c.ID,
-                                    WmsCode = p.WmsCode,
-                                    ProductsId = c.ObjectID,
-                                    Name = p.Name,
-                                    Qty = c.Qty,
-                                    QtyBox = c.QtyBox,
-                                    Price = c.ProductPrice,
-                                    Amount = c.Amount
-                                }).ToList();
-
-                        return new MixItem
-                        {
-                            Id = y.ID,
-                            ProductsId = y.ObjectID,
-                            PromoId = y.PromosID,
-                            WmsCode = currentBottle?.WmsCode,
-                            Name = currentBottle?.Name,
-                            Qty = y.Qty,
-                            QtyBox = y.QtyBox,
-                            Price = y.ProductPrice,
-                            Amount = y.Amount,
-                            Notes = y.Note,
-                            ApprovalStatus = y.ApprovalStatus,
-                            ClosureItems = closureItems
-                        };
-                    }).ToList();
-            }
+                        Id = y.ID,
+                        ProductsId = y.ObjectID,
+                        PromoId = y.PromosID,
+                        WmsCode = currentBottle?.WmsCode,
+                        Name = currentBottle?.Name,
+                        Qty = y.Qty,
+                        QtyBox = y.QtyBox,
+                        Price = y.ProductPrice,
+                        Amount = y.Amount,
+                        Notes = y.Note,
+                        ApprovalStatus = y.ApprovalStatus,
+                        ClosureItems = closureItems
+                    };
+                }).ToList();
 
             if (data.Total == null)
             {
@@ -654,7 +500,7 @@ namespace Sopra.Services
 
                 if (data == null) return null;
 
-                    return await getOrderDetails(data, false);
+                    return await getOrderDetails(data);
             }
             catch (Exception ex)
             {
@@ -700,7 +546,7 @@ namespace Sopra.Services
 
                 if (data == null) return null;
 
-                return await getOrderDetails(data, true);
+                return await getOrderDetails(data);
             }
             catch (Exception ex)
             {
