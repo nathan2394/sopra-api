@@ -38,22 +38,34 @@ namespace Sopra.Services
             try
             {
                 _context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
+                var now = Utility.getCurrentTimestamps();
+
                 var query = from a in _context.Customers
                             join b in _context.Users on a.RefID equals b.CustomersID
+                            from c in _context.UserDealers.Where(x => x.UserId == b.RefID && now >= x.StartDate && now <= x.EndDate).DefaultIfEmpty()
+                            from d in _context.Dealers.Where(x => c != null && x.RefID == c.DealerId).DefaultIfEmpty()
                             where a.IsDeleted == false
                             select new
                             {
                                 ID = a.ID,
                                 RefID = a.RefID,
+                                DateIn = a.DateIn,
                                 UserID = b.RefID,
+                                CustomerNumber = a.CustomerNumber,
+                                Seller = a.Seller,
+                                Termin = a.Termin,
                                 Name = a.Name,
                                 Mobile1 = a.Mobile1,
-                                Email = a.Email
+                                Email = a.Email,
+                                DealerId = d != null ? d.RefID : 0,
+                                DealerName = d != null ? d.Tier : "Regular"
                             };
 
                 // Searching
                 if (!string.IsNullOrEmpty(search))
-                    query = query.Where(x => x.Name.ToString().Equals(search));
+                    query = query.Where(x => x.Name.Contains(search)
+                        || x.Mobile1.Equals(search)
+                    );
 
                 // Filtering
                 if (!string.IsNullOrEmpty(filter))
@@ -133,7 +145,17 @@ namespace Sopra.Services
                         ID = x.ID,
                         RefID = x.RefID,
                         UserID = x.UserID,
-                        CustomerName = x.Name
+
+                        CustomerNumber = x.CustomerNumber,
+                        CustomerName = x.Name,
+                        Seller = x.Seller,
+                        Termin = x.Termin,
+
+                        Email = x.Email,
+                        Mobile1 = x.Mobile1,
+
+                        DealerID = x.DealerId,
+                        DealerName = x.DealerName
                     };
                 })
                 .ToList();
