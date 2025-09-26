@@ -43,8 +43,9 @@ namespace Sopra.Services
                             join c in _context.Users on a.CustomersID equals c.RefID
                             join d in _context.Customers on c.CustomersID equals d.RefID into customerJoin
                             from d in customerJoin.DefaultIfEmpty()
+                            join e in _context.Payments on a.ObjectID equals e.ID
                             where a.IsDeleted == false
-                            select new { Deposit = a, Customer = d };
+                            select new { Deposit = a, Customer = d, Payment = e };
 
                 var dateBetween = "";
 
@@ -66,8 +67,9 @@ namespace Sopra.Services
                             if (fieldName == "transdate") dateBetween = Convert.ToString(value);
                             query = fieldName switch
                             {
-                                "customersid" => query.Where(x => x.Deposit.CustomersID.ToString().Equals(value)),
-                                "customersname" => query.Where(x => x.Customer.Name.ToString().Equals(value)),
+                                "userid" => query.Where(x => x.Deposit.CustomersID.ToString().Equals(value)),
+                                "customerid" => query.Where(x => x.Customer.RefID.ToString().Equals(value)),
+                                "customername" => query.Where(x => x.Customer.Name.Equals(value)),
                                 _ => query
                             };
                         }
@@ -86,8 +88,9 @@ namespace Sopra.Services
                     {
                         query = orderBy.ToLower() switch
                         {
-                            "customersid" => query.OrderByDescending(x => x.Deposit.CustomersID),
-                            "customersname" => query.OrderByDescending(x => x.Customer.Name),
+                            "userid" => query.OrderByDescending(x => x.Deposit.CustomersID),
+                            "customerid" => query.OrderByDescending(x => x.Customer.ID),
+                            "customername" => query.OrderByDescending(x => x.Customer.Name),
                             _ => query
                         };
                     }
@@ -95,10 +98,9 @@ namespace Sopra.Services
                     {
                         query = orderBy.ToLower() switch
                         {
-                            "transdate" => query.OrderBy(x => x.Deposit.TransDate),
-                            "customersid" => query.OrderBy(x => x.Deposit.CustomersID),
-                            "customersname" => query.OrderBy(x => x.Customer.Name),
-                            "totalamount" => query.OrderBy(x => x.Deposit.DateUp),
+                            "userid" => query.OrderBy(x => x.Deposit.CustomersID),
+                            "customerid" => query.OrderBy(x => x.Customer.ID),
+                            "customername" => query.OrderBy(x => x.Customer.Name),
                             _ => query
                         };
                     }
@@ -140,9 +142,14 @@ namespace Sopra.Services
                         ID = x.Deposit.ID,
                         RefID = x.Deposit.RefID,
                         TransDate = x.Deposit.TransDate,
+
                         CustomerID = x.Deposit.CustomersID,
                         CustomerName = x.Customer?.Name ?? "",
-                        TotalAmount = x.Deposit.TotalAmount
+
+                        TotalAmount = x.Deposit.TotalAmount,
+
+                        PaymentID = x.Payment.ID,
+                        PaymentNo = x.Payment.PaymentNo
                     };
                 })
                 .ToList();
