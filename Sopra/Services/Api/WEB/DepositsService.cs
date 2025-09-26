@@ -89,7 +89,7 @@ namespace Sopra.Services
                         query = orderBy.ToLower() switch
                         {
                             "userid" => query.OrderByDescending(x => x.Deposit.CustomersID),
-                            "customerid" => query.OrderByDescending(x => x.Customer.RefID),
+                            "customerid" => query.OrderByDescending(x => x.Customer.ID),
                             "customername" => query.OrderByDescending(x => x.Customer.Name),
                             _ => query
                         };
@@ -99,7 +99,7 @@ namespace Sopra.Services
                         query = orderBy.ToLower() switch
                         {
                             "userid" => query.OrderBy(x => x.Deposit.CustomersID),
-                            "customerid" => query.OrderBy(x => x.Customer.RefID),
+                            "customerid" => query.OrderBy(x => x.Customer.ID),
                             "customername" => query.OrderBy(x => x.Customer.Name),
                             _ => query
                         };
