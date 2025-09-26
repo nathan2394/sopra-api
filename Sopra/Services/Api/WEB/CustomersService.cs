@@ -58,7 +58,10 @@ namespace Sopra.Services
                                 Mobile1 = a.Mobile1,
                                 Email = a.Email,
                                 DealerId = d != null ? d.RefID : 0,
-                                DealerName = d != null ? d.Tier : "Regular"
+                                DealerName = d != null ? d.Tier : "Regular",
+                                DepositBalance = _context.Deposit
+                                    .Where(x => x.CustomersID == b.RefID)
+                                    .Sum(x => x.TotalAmount) ?? 0
                             };
 
                 // Searching
@@ -102,8 +105,9 @@ namespace Sopra.Services
                     {
                         query = orderBy.ToLower() switch
                         {
-                            "name" => query.OrderByDescending(x => x.Name),
+                            "customerName" => query.OrderByDescending(x => x.Name),
                             "email" => query.OrderByDescending(x => x.Email),
+                            "depositBalance" => query.OrderByDescending(x => x.DepositBalance),
                             _ => query
                         };
                     }
@@ -111,8 +115,9 @@ namespace Sopra.Services
                     {
                         query = orderBy.ToLower() switch
                         {
-                            "name" => query.OrderBy(x => x.Name),
+                            "customerName" => query.OrderBy(x => x.Name),
                             "email" => query.OrderBy(x => x.Email),
+                            "depositBalance" => query.OrderBy(x => x.DepositBalance),
                             _ => query
                         };
                     }
@@ -155,7 +160,9 @@ namespace Sopra.Services
                         Mobile1 = x.Mobile1,
 
                         DealerID = x.DealerId,
-                        DealerName = x.DealerName
+                        DealerName = x.DealerName,
+
+                        DepositBalance = x.DepositBalance
                     };
                 })
                 .ToList();
