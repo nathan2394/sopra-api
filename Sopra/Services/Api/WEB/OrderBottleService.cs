@@ -23,7 +23,7 @@ namespace Sopra.Services
     {
         Task<ListResponse<dynamic>> GetAllAsync(int limit, int page, int total, string search, string sort,
         string filter, string date);
-        Task<OrderBottleDto> GetByIdAsync(long id);
+        Task<OrderBottleDto> GetByIdAsync(long id, Boolean isRecreate);
         Task<OrderBottleDto> GetByKeyAsync(string key);
         Task<Voucher> CheckVoucherAsync(string voucher, long amount);
         Task<string> CheckOrderStatusAsync(long id);
@@ -131,7 +131,111 @@ namespace Sopra.Services
             }
         }
 
-        private async Task<OrderBottleDto> getOrderDetails(Order data)
+        private bool ValidateProductSet(List<PromoProduct> promoProducts, long? bottleProductId, List<long?> closureProductIds)
+        {
+            if (bottleProductId == null) return false;
+
+            var sortedIDs = closureProductIds.OrderBy(x => x).ToList();
+            
+            var accs1ID = sortedIDs.Count > 0 ? sortedIDs[0] : 0;
+            var accs2ID = sortedIDs.Count > 1 ? sortedIDs[1] : 0;
+
+            return promoProducts.Any(pp => 
+                pp.ProductsId == bottleProductId &&
+                pp.Accs1Id == accs1ID &&
+                pp.Accs2Id == accs2ID
+            );
+        }
+
+        private List<MixItem> UpdateMixItemsPrices(List<MixItem> mixItems, List<PromoProduct> promoProducts, int? moqLevel)
+        {
+            return mixItems.Select(mixItem =>
+            {
+                var closureIds = mixItem.ClosureItems.Select(c => c.ProductsId).OrderBy(x => x).ToList();
+                var accs1ID = closureIds.Count > 0 ? closureIds[0] : 0;
+                var accs2ID = closureIds.Count > 1 ? closureIds[1] : 0;
+
+                var promoProduct = promoProducts.FirstOrDefault(pp =>
+                    pp.ProductsId == mixItem.ProductsId &&
+                    pp.Accs1Id == accs1ID &&
+                    pp.Accs2Id == accs2ID
+                );
+
+                if (promoProduct != null)
+                {
+                    var newPrice = moqLevel switch
+                    {
+                        1 => promoProduct.Price ?? mixItem.Price,
+                        2 => promoProduct.Price2 ?? mixItem.Price,
+                        3 => promoProduct.Price3 ?? mixItem.Price,
+                        _ => mixItem.Price
+                    };
+
+                    var updatedMixItem = new MixItem
+                    {
+                        Id = mixItem.Id,
+                        ProductsId = mixItem.ProductsId,
+                        PromoId = mixItem.PromoId,
+                        WmsCode = mixItem.WmsCode,
+                        Name = mixItem.Name,
+                        Qty = mixItem.Qty,
+                        QtyBox = mixItem.QtyBox,
+                        Price = newPrice,
+                        Amount = newPrice * mixItem.Qty,
+                        Notes = mixItem.Notes,
+                        ApprovalStatus = mixItem.ApprovalStatus,
+                        ClosureItems = mixItem.ClosureItems
+                    };
+
+                    return updatedMixItem;
+                }
+
+                return mixItem;
+            }).ToList();
+        }
+        
+        private MixItem MapMixItem(dynamic bottleMixItem, List<OrderDetail> allMixItems, List<ProductDetail2> productItems, long? promoId)
+        {
+            if (promoId == null) return null;
+
+            var currentBottle = productItems.FirstOrDefault(p => p.RefID == bottleMixItem.ObjectID && p.Type == "bottle");
+
+            var closureItems = allMixItems
+                .Where(c => c.ObjectType == "closures" && c.ParentID == bottleMixItem.ID)
+                .Take(2) // Ensure max 2 closures
+                .Join(productItems.Where(p => p.Type == "closure"),
+                    c => c.ObjectID,
+                    p => p.RefID,
+                    (c, p) => new ClosureItem
+                    {
+                        Id = c.ID,
+                        WmsCode = p.WmsCode,
+                        ProductsId = c.ObjectID,
+                        Name = p.Name,
+                        Qty = c.Qty,
+                        QtyBox = c.QtyBox,
+                        Price = c.ProductPrice,
+                        Amount = c.Amount
+                    }).ToList();
+
+            return new MixItem
+            {
+                Id = bottleMixItem.ID,
+                ProductsId = bottleMixItem.ObjectID,
+                PromoId = promoId,
+                WmsCode = currentBottle?.WmsCode,
+                Name = currentBottle?.Name,
+                Qty = bottleMixItem.Qty,
+                QtyBox = bottleMixItem.QtyBox,
+                Price = bottleMixItem.ProductPrice,
+                Amount = bottleMixItem.Amount,
+                Notes = bottleMixItem.Note,
+                ApprovalStatus = bottleMixItem.ApprovalStatus,
+                ClosureItems = closureItems
+            };
+        }
+
+        private async Task<OrderBottleDto> getOrderDetails(Order data, Boolean isRecreate)
         {
             var allRegulerItems = await _context.OrderDetails
                 .Where(x => x.OrdersID == data.ID && x.Type == "Reguler")
@@ -190,46 +294,124 @@ namespace Sopra.Services
                         ClosureItems = closureItems
                     };
                 }).ToList();
-                
-            var mixItems = allMixItems
-                .Where(x => x.ObjectType == "bottle")
-                .Select(y =>
+
+            var mixItems = new List<MixItem>();
+            if (isRecreate == true)
+            {
+                var promoId = allMixItems.FirstOrDefault()?.PromosID;
+                if (promoId != null)
                 {
-                    var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
+                    var currentPromo = await _context.Promos
+                        .FirstOrDefaultAsync(x => x.RefID == promoId);
 
-                    var closureItems = allMixItems
-                        .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
-                        .Join(productItems.Where(p => p.Type == "closure"),
-                            c => c.ObjectID,
-                            p => p.RefID,
-                            (c, p) => new ClosureItem
-                            {
-                                Id = c.ID,
-                                WmsCode = p.WmsCode,
-                                ProductsId = c.ObjectID,
-                                Name = p.Name,
-                                Qty = c.Qty,
-                                QtyBox = c.QtyBox,
-                                Price = c.ProductPrice,
-                                Amount = c.Amount
-                            }).ToList();
-
-                    return new MixItem
+                    if (currentPromo != null)
                     {
-                        Id = y.ID,
-                        ProductsId = y.ObjectID,
-                        PromoId = y.PromosID,
-                        WmsCode = currentBottle?.WmsCode,
-                        Name = currentBottle?.Name,
-                        Qty = y.Qty,
-                        QtyBox = y.QtyBox,
-                        Price = y.ProductPrice,
-                        Amount = y.Amount,
-                        Notes = y.Note,
-                        ApprovalStatus = y.ApprovalStatus,
-                        ClosureItems = closureItems
-                    };
-                }).ToList();
+                        var now = Utility.getCurrentTimestamps();
+                        if (currentPromo.StartDate <= now && currentPromo.EndDate >= now)
+                        {
+                            mixItems = allMixItems
+                                .Where(x => x.ObjectType == "bottle")
+                                .Select(y => MapMixItem(y, allMixItems, productItems, y.PromosID))
+                                .ToList();
+                        }
+                        else
+                        {
+                            var newPromo = await _context.Promos
+                                .Where(x => x.Name == currentPromo.Name &&
+                                            x.StartDate <= now &&
+                                            x.EndDate >= now)
+                                .OrderByDescending(x => x.ID)
+                                .FirstOrDefaultAsync();
+
+                            if (newPromo != null)
+                            {
+                                var newPromoProducts = await _context.PromoProducts
+                                    .Where(x => x.PromoMixId == newPromo.RefID)
+                                    .ToListAsync();
+
+                                mixItems = allMixItems
+                                    .Where(x => x.ObjectType == "bottle")
+                                    .Select(y =>
+                                    {
+                                        var closureObjectIds = allMixItems
+                                            .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
+                                            .Take(2)
+                                            .Select(c => c.ObjectID)
+                                            .ToList();
+
+                                        bool productSetExists = ValidateProductSet(
+                                            newPromoProducts,
+                                            y.ObjectID,
+                                            closureObjectIds
+                                        );
+
+                                        if (productSetExists)
+                                        {
+                                            return MapMixItem(y, allMixItems, productItems, newPromo.RefID);
+                                        }
+                                        return null;
+                                    })
+                                    .Where(x => x != null)
+                                    .ToList();
+                                    
+                                var sumQty = mixItems.Sum(m => m.Qty);
+
+                                var mixQuantities = await _context.PromoQuantities
+                                    .Where(x => x.PromoMixId == newPromo.RefID && sumQty >= x.MinQuantity)
+                                    .OrderByDescending(x => x.MinQuantity)
+                                    .FirstOrDefaultAsync();
+
+                                if (mixQuantities != null)
+                                {
+                                    mixItems = UpdateMixItemsPrices(mixItems, newPromoProducts, mixQuantities.Level);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                mixItems = allMixItems
+                    .Where(x => x.ObjectType == "bottle")
+                    .Select(y =>
+                    {
+                        var currentBottle = productItems.FirstOrDefault(p => p.RefID == y.ObjectID && p.Type == "bottle");
+
+                        var closureItems = allMixItems
+                            .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
+                            .Join(productItems.Where(p => p.Type == "closure"),
+                                c => c.ObjectID,
+                                p => p.RefID,
+                                (c, p) => new ClosureItem
+                                {
+                                    Id = c.ID,
+                                    WmsCode = p.WmsCode,
+                                    ProductsId = c.ObjectID,
+                                    Name = p.Name,
+                                    Qty = c.Qty,
+                                    QtyBox = c.QtyBox,
+                                    Price = c.ProductPrice,
+                                    Amount = c.Amount
+                                }).ToList();
+
+                        return new MixItem
+                        {
+                            Id = y.ID,
+                            ProductsId = y.ObjectID,
+                            PromoId = y.PromosID,
+                            WmsCode = currentBottle?.WmsCode,
+                            Name = currentBottle?.Name,
+                            Qty = y.Qty,
+                            QtyBox = y.QtyBox,
+                            Price = y.ProductPrice,
+                            Amount = y.Amount,
+                            Notes = y.Note,
+                            ApprovalStatus = y.ApprovalStatus,
+                            ClosureItems = closureItems
+                        };
+                    }).ToList();
+            }
 
             if (data.Total == null)
             {
@@ -500,7 +682,7 @@ namespace Sopra.Services
 
                 if (data == null) return null;
 
-                    return await getOrderDetails(data);
+                    return await getOrderDetails(data, false);
             }
             catch (Exception ex)
             {
@@ -537,7 +719,7 @@ namespace Sopra.Services
             return status;
         }
 
-        public async Task<OrderBottleDto> GetByIdAsync(long id)
+        public async Task<OrderBottleDto> GetByIdAsync(long id, Boolean isRecreate)
         {
             try
             {
@@ -546,7 +728,7 @@ namespace Sopra.Services
 
                 if (data == null) return null;
 
-                return await getOrderDetails(data);
+                return await getOrderDetails(data, isRecreate);
             }
             catch (Exception ex)
             {

@@ -57,11 +57,11 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<IActionResult> GetById(int id, Boolean isRecreate)
         {
             try
             {
-                var result = await _service.GetByIdAsync(id);
+                var result = await _service.GetByIdAsync(id, isRecreate);
                 return Ok(result);
             }
             catch (Exception ex)
