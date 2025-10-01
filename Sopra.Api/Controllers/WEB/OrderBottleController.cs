@@ -12,7 +12,6 @@ namespace Sopra.Api.Controllers
 {
     [ApiController]
     [Route("OrderBottle")]
-    [Authorize]
     public class OrderBottleController : ControllerBase
     {
         private readonly OrderBottleInterface _service;
@@ -34,6 +33,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet]
+        [Authorize]
         public async Task<IActionResult> Get(int limit = 0, int page = 0, string search = "", string sort = "", string filter = "", string date = "")
         {
             try
@@ -101,6 +101,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet("CheckVoucher")]
+        [Authorize]
         public async Task<IActionResult> CheckVoucher(string voucher, long amount)
         {
             try
@@ -123,6 +124,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet("CheckInduk/{customerID}")]
+        [Authorize]
         public async Task<IActionResult> CheckIndukAnak(long customerID)
         {
             try
@@ -145,6 +147,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet("CheckStatus/{id}")]
+        [Authorize]
         public async Task<IActionResult> CheckOrderStatus(long id)
         {
             try
@@ -167,6 +170,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet("CheckDealer/{customerID}")]
+        [Authorize]
         public async Task<IActionResult> CheckDealer(long customerID)
         {
             try
@@ -189,6 +193,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpPost]
+        [Authorize]
         public async Task<IActionResult> Create([FromBody] OrderBottleDto obj)
         {
             try
@@ -214,6 +219,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpPut]
+        [Authorize]
         public async Task<IActionResult> Edit([FromBody] OrderBottleDto obj)
         {
             try
@@ -240,6 +246,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize]
         public async Task<IActionResult> Delete(long id, [FromQuery] int reason)
         {
             try
