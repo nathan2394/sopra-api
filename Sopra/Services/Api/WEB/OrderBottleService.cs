@@ -302,69 +302,64 @@ namespace Sopra.Services
                 if (promoId != null)
                 {
                     var currentPromo = await _context.Promos
-                        .FirstOrDefaultAsync(x => x.RefID == promoId);
+                        .FirstOrDefaultAsync(x => x.RefID == promoId && x.IsDeleted == false);
 
                     if (currentPromo != null)
                     {
                         var now = Utility.getCurrentTimestamps();
-                        if (currentPromo.StartDate <= now && currentPromo.EndDate >= now)
-                        {
-                            mixItems = allMixItems
-                                .Where(x => x.ObjectType == "bottle")
-                                .Select(y => MapMixItem(y, allMixItems, productItems, y.PromosID))
-                                .ToList();
-                        }
-                        else
-                        {
-                            var newPromo = await _context.Promos
+                        var isAvailable = currentPromo.StartDate <= now && currentPromo.EndDate >= now;
+
+                        var newPromo = isAvailable
+                            ? currentPromo
+                            : await _context.Promos
                                 .Where(x => x.Name == currentPromo.Name &&
                                             x.StartDate <= now &&
-                                            x.EndDate >= now)
+                                            x.EndDate >= now &&
+                                            x.IsDeleted == false)
                                 .OrderByDescending(x => x.ID)
                                 .FirstOrDefaultAsync();
 
-                            if (newPromo != null)
-                            {
-                                var newPromoProducts = await _context.PromoProducts
-                                    .Where(x => x.PromoMixId == newPromo.RefID)
-                                    .ToListAsync();
+                        if (newPromo != null)
+                        {
+                            var newPromoProducts = await _context.PromoProducts
+                                .Where(x => x.PromoMixId == newPromo.RefID && x.IsDeleted == false)
+                                .ToListAsync();
 
-                                mixItems = allMixItems
-                                    .Where(x => x.ObjectType == "bottle")
-                                    .Select(y =>
-                                    {
-                                        var closureObjectIds = allMixItems
-                                            .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
-                                            .Take(2)
-                                            .Select(c => c.ObjectID)
-                                            .ToList();
-
-                                        bool productSetExists = ValidateProductSet(
-                                            newPromoProducts,
-                                            y.ObjectID,
-                                            closureObjectIds
-                                        );
-
-                                        if (productSetExists)
-                                        {
-                                            return MapMixItem(y, allMixItems, productItems, newPromo.RefID);
-                                        }
-                                        return null;
-                                    })
-                                    .Where(x => x != null)
-                                    .ToList();
-                                    
-                                var sumQty = mixItems.Sum(m => m.Qty);
-
-                                var mixQuantities = await _context.PromoQuantities
-                                    .Where(x => x.PromoMixId == newPromo.RefID && sumQty >= x.MinQuantity)
-                                    .OrderByDescending(x => x.MinQuantity)
-                                    .FirstOrDefaultAsync();
-
-                                if (mixQuantities != null)
+                            mixItems = allMixItems
+                                .Where(x => x.ObjectType == "bottle" && x.IsDeleted == false)
+                                .Select(y =>
                                 {
-                                    mixItems = UpdateMixItemsPrices(mixItems, newPromoProducts, mixQuantities.Level);
-                                }
+                                    var closureObjectIds = allMixItems
+                                        .Where(c => c.ObjectType == "closures" && c.ParentID == y.ID)
+                                        .Take(2)
+                                        .Select(c => c.ObjectID)
+                                        .ToList();
+
+                                    bool productSetExists = ValidateProductSet(
+                                        newPromoProducts,
+                                        y.ObjectID,
+                                        closureObjectIds
+                                    );
+
+                                    if (productSetExists)
+                                    {
+                                        return MapMixItem(y, allMixItems, productItems, newPromo.RefID);
+                                    }
+                                    return null;
+                                })
+                                .Where(x => x != null)
+                                .ToList();
+                                    
+                            var sumQty = mixItems.Sum(m => m.Qty);
+
+                            var mixQuantities = await _context.PromoQuantities
+                                .Where(x => x.PromoMixId == newPromo.RefID && sumQty >= x.MinQuantity && x.IsDeleted == false)
+                                .OrderByDescending(x => x.MinQuantity)
+                                .FirstOrDefaultAsync();
+
+                            if (mixQuantities != null)
+                            {
+                                mixItems = UpdateMixItemsPrices(mixItems, newPromoProducts, mixQuantities.Level);
                             }
                         }
                     }
@@ -513,7 +508,14 @@ namespace Sopra.Services
                                                 ? "partially_paid"
                                                 : _context.Invoices.Any(i => i.OrdersID == a.ID && i.Status == "ACTIVE" && i.FlagInv == 1)
                                                     ? "requested"
-                                                    : "invoiced"
+                                                    : "invoiced",
+                                 InvoiceAttachmentKey = _context.Invoices
+                                    .Where(i => i.OrdersID == a.ID 
+                                        && i.Status == "ACTIVE"
+                                        && i.PaymentMethod == 1
+                                        && !_context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
+                                    .Select(i => i.AttachmentKey)
+                                    .FirstOrDefault()
                             };
 
                 var dateBetween = "";
@@ -655,6 +657,7 @@ namespace Sopra.Services
                         Status = x.Order.OrderStatus,
 
                         AttachmentKey = x.Order.AttachmentKey,
+                        InvoiceAttachmentKey = x.InvoiceAttachmentKey,
 
                         Progress = x.Progress
                     };
@@ -1036,7 +1039,7 @@ namespace Sopra.Services
                 }
 
                 // INSERT INVOICES
-                foreach (var item in data.InvoiceItems)
+                foreach (var item in ((IEnumerable<InvoiceItem>)data.InvoiceItems).Reverse())
                 {
                     var invoiceItem = new InvoiceBottle
                     {
