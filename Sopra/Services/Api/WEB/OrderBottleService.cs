@@ -165,10 +165,10 @@ namespace Sopra.Services
                 {
                     var newPrice = moqLevel switch
                     {
-                        1 => promoProduct.Price ?? mixItem.Price,
-                        2 => promoProduct.Price2 ?? mixItem.Price,
-                        3 => promoProduct.Price3 ?? mixItem.Price,
-                        _ => mixItem.Price
+                        1 => promoProduct.Price ?? 0,
+                        2 => promoProduct.Price2 ?? 0,
+                        3 => promoProduct.Price3 ?? 0,
+                        _ => 0
                     };
 
                     var updatedMixItem = new MixItem
