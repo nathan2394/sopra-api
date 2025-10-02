@@ -12,7 +12,6 @@ namespace Sopra.Api.Controllers
 {
     [ApiController]
     [Route("Customers")]
-    [Authorize]
     public class CustomersController : ControllerBase
     {
         private readonly CustomersInterface _service;
@@ -23,6 +22,7 @@ namespace Sopra.Api.Controllers
         }
 
         [HttpGet]
+        [Authorize]
         public async Task<IActionResult> Get(int limit = 0, int page = 0, string search = "", string sort = "", string filter = "", string date = "")
         {
             try

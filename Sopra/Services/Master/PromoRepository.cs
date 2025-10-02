@@ -49,7 +49,7 @@ namespace Sopra.Services
                             Promo.Name = row["name"].ToString();
                             Promo.PromoDesc = row["promo_desc"].ToString();
                             Promo.StartDate = row["start_date"] == DBNull.Value ? (DateTime?)null : DateTime.ParseExact(row["start_date"].ToString(), "dd/MM/yyyy", CultureInfo.InvariantCulture);
-                            Promo.EndDate = row["end_date"] == DBNull.Value ? (DateTime?)null : DateTime.ParseExact(row["end_date"].ToString(), "dd/MM/yyyy", CultureInfo.InvariantCulture);
+                            Promo.EndDate = row["end_date"] == DBNull.Value ? (DateTime?)null : DateTime.ParseExact(row["end_date"].ToString(), "dd/MM/yyyy", CultureInfo.InvariantCulture).Date.AddDays(1).AddSeconds(-1);
                             Promo.Image = row["image"] == DBNull.Value ? null : row["image"].ToString();
                             Promo.ImgThumb = row["img_thumb"] == DBNull.Value ? null : row["img_thumb"].ToString();
                             Promo.Category = row["category"] == DBNull.Value ? null : Convert.ToInt32(row["category"]);
