@@ -357,10 +357,8 @@ namespace Sopra.Services
                                 .OrderByDescending(x => x.MinQuantity)
                                 .FirstOrDefaultAsync();
 
-                            if (mixQuantities != null)
-                            {
-                                mixItems = UpdateMixItemsPrices(mixItems, newPromoProducts, mixQuantities.Level);
-                            }
+                            var tempLevel = mixQuantities != null ? mixQuantities.Level : 0;
+                            mixItems = UpdateMixItemsPrices(mixItems, newPromoProducts, tempLevel);
                         }
                     }
                 }
