@@ -19,7 +19,9 @@ namespace Sopra.Services
             DateTime startDate,
             DateTime endDate,
             int companyID,
-            string search
+            string search,
+            int page,
+            int limit
         );
     }
 
@@ -31,7 +33,10 @@ namespace Sopra.Services
             DateTime startDate,
             DateTime endDate,
             int companyID,
-            string search)
+            string search,
+            int page,
+            int limit
+        )
         {
             try
             {
@@ -39,6 +44,7 @@ namespace Sopra.Services
                 var result = await Task.Run(() => Utility.SQLGetObjects(query, Utility.SQLDBConnection));
 
                 var dataList = ConvertDataTableToList(result, key);
+                var totalCount = dataList.Count;
 
                 // Searching
                 if (!string.IsNullOrEmpty(search))
@@ -46,9 +52,15 @@ namespace Sopra.Services
                     search = search.ToLowerInvariant();
                     dataList = dataList.Where((item) =>
                         JsonSerializer.Serialize(item).ToLowerInvariant().Contains(search)).ToList();
+
+                    totalCount = dataList.Count;
                 }
 
-                return new ListResponse<dynamic>(dataList, dataList.Count, 0);
+                // Set Limit and Page
+                if (key != "COUNT_OVERVIEW" && limit != 0)
+                    dataList = dataList.Skip(page * limit).Take(limit).ToList();
+
+                return new ListResponse<dynamic>(dataList, totalCount, 0);
             }
             catch (Exception ex)
             {
@@ -210,11 +222,14 @@ namespace Sopra.Services
             DateTime startDate,
             DateTime endDate,
             int companyID,
-            string search)
+            string search,
+            int page,
+            int limit    
+        )
         {
             try
             {
-                return await FetchDashboard(key, startDate, endDate, companyID, search);
+                return await FetchDashboard(key, startDate, endDate, companyID, search, page, limit);
             }
             catch (Exception ex)
             {
