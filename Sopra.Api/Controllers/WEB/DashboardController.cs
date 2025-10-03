@@ -28,11 +28,14 @@ namespace Sopra.Controllers
             [FromQuery] DateTime startDate,
             [FromQuery] DateTime endDate,
             [FromQuery] int companyID,
-            [FromQuery] string search)
+            [FromQuery] string search,
+            [FromQuery] int page,
+            [FromQuery] int limit
+        )
         {
             try
             {
-                var result = await _service.LoadTableData(key, startDate, endDate, companyID, search);
+                var result = await _service.LoadTableData(key, startDate, endDate, companyID, search, page, limit);
                 return Ok(result);
             }
             catch (Exception ex)

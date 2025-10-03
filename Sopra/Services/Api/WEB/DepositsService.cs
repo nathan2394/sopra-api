@@ -68,7 +68,7 @@ namespace Sopra.Services
                             query = fieldName switch
                             {
                                 "userid" => query.Where(x => x.Deposit.CustomersID.ToString().Equals(value)),
-                                "customerid" => query.Where(x => x.Customer.RefID.ToString().Equals(value)),
+                                "customersid" => query.Where(x => x.Customer.RefID.ToString().Equals(value)),
                                 "customername" => query.Where(x => x.Customer.Name.Equals(value)),
                                 _ => query
                             };
@@ -89,7 +89,7 @@ namespace Sopra.Services
                         query = orderBy.ToLower() switch
                         {
                             "userid" => query.OrderByDescending(x => x.Deposit.CustomersID),
-                            "customerid" => query.OrderByDescending(x => x.Customer.ID),
+                            "customersid" => query.OrderByDescending(x => x.Customer.RefID),
                             "customername" => query.OrderByDescending(x => x.Customer.Name),
                             _ => query
                         };
@@ -99,7 +99,7 @@ namespace Sopra.Services
                         query = orderBy.ToLower() switch
                         {
                             "userid" => query.OrderBy(x => x.Deposit.CustomersID),
-                            "customerid" => query.OrderBy(x => x.Customer.ID),
+                            "customersid" => query.OrderBy(x => x.Customer.RefID),
                             "customername" => query.OrderBy(x => x.Customer.Name),
                             _ => query
                         };
