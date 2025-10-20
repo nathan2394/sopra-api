@@ -138,7 +138,8 @@ namespace Sopra.Services
             var invoiceReferences = await _context.Invoices
                 .Where(x => x.OrdersID == data.Invoice.OrdersID &&
                             x.ID != data.Invoice.ID &&
-                            x.IsDeleted == false)
+                            x.IsDeleted == false && 
+                            x.Status != "CANCEL")
                 .Select(x => new
                 {
                     ID = x.ID,
@@ -309,6 +310,18 @@ namespace Sopra.Services
                     return await GetAllAsync(limit, page, total, search, sort, filter, date);
                 }
 
+                var orderIds = data
+                    .Select(x => x.Invoice.OrdersID.Value)
+                    .Distinct()
+                    .ToList();
+
+                var PaidOrderIds = await _context.Invoices
+                    .Where(i => orderIds.Contains(i.OrdersID.Value) && i.Status == "ACTIVE")
+                    .Where(i => _context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
+                    .Select(i => i.OrdersID.Value)
+                    .Distinct()
+                    .ToListAsync();
+
                 // Map to DTO
                 var resData = data.Select(x =>
                 {
@@ -339,7 +352,8 @@ namespace Sopra.Services
                             ? (x.Payment == null
                             ? x.Invoice.FlagInv == 1 ? (x.Invoice.DueDate != null && x.Invoice.DueDate < now ? "expired" : "requested") : "invoiced"
                                 : "paid")
-                                : "cancel"
+                                : "cancel",
+                        HasAnyPayment = x.Invoice.OrdersID.HasValue && PaidOrderIds.Contains(x.Invoice.OrdersID.Value)
                     };
                 })
                 .Distinct()
