@@ -482,39 +482,56 @@ namespace Sopra.Services
             try
             {
                 _context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
-                //Get data from context Orders join to Users
-                //Users join to Customers 
+
                 var query = from a in _context.Orders
-                            join c in _context.Users on a.CustomersID equals c.RefID
-                            join d in _context.Customers on c.CustomersID equals d.RefID into customerJoin
-                            from d in customerJoin.DefaultIfEmpty()
-                            where a.IsDeleted == false
-                            select new
-                            {
-                                Order = a,
-                                Customer = d,
-                                FullInvoiced = _context.Invoices
-                                .Where(i => i.OrdersID == a.ID && i.Status != "CANCEL")
-                                .Sum(i => i.Netto) >= a.Total,
-                                Progress = a.OrderStatus == "CANCEL"
-                                    ? "cancel"
-                                    : !_context.Invoices.Any(i => i.OrdersID == a.ID && i.Status == "ACTIVE")
-                                        ? "order"
-                                        : _context.Invoices.Where(i => i.OrdersID == a.ID && i.Status == "ACTIVE").All(i => _context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
-                                            ? "paid"
-                                            : _context.Invoices.Where(i => i.OrdersID == a.ID && i.Status == "ACTIVE").Any(i => _context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
-                                                ? "partially_paid"
-                                                : _context.Invoices.Any(i => i.OrdersID == a.ID && i.Status == "ACTIVE" && i.FlagInv == 1)
-                                                    ? "requested"
-                                                    : "invoiced",
-                                 InvoiceAttachmentKey = _context.Invoices
-                                    .Where(i => i.OrdersID == a.ID 
-                                        && i.Status == "ACTIVE"
-                                        && i.PaymentMethod == 1
-                                        && !_context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
-                                    .Select(i => i.AttachmentKey)
-                                    .FirstOrDefault()
-                            };
+                    where a.IsDeleted == false && !a.OrderNo.EndsWith("B") // Skip B orders
+                    join b in _context.Orders on a.OrderNo.Replace("-A", "") equals b.OrderNo.Replace("-B", "") into splitJoin
+                    from b in splitJoin.Where(x => x.OrderNo.EndsWith("B")).DefaultIfEmpty()
+                    join c in _context.Users on a.CustomersID equals c.RefID
+                    join d in _context.Customers on c.CustomersID equals d.RefID into customerJoin
+                    from d in customerJoin.DefaultIfEmpty()
+                    let combinedTotal = a.Total + (b != null ? b.Total : 0)
+                    let combinedDPP = a.DPP + (b != null ? b.DPP : 0)
+                    let combinedTax = a.TAX + (b != null ? b.TAX : 0)
+                    let combinedAmount = a.Amount + (b != null ? b.Amount : 0)
+                    let combinedTotalMix = a.TotalMix + (b != null ? b.TotalMix : 0)
+                    let combinedDisc1Value = a.Disc1Value + (b != null ? b.Disc1Value : 0)
+                    select new
+                    {
+                        voucherNo = a.OrderNo.Replace("-A", ""),
+                        Order = a,
+                        Customer = d,
+                        CombinedTotal = combinedTotal,
+                        CombinedDPP = combinedDPP,
+                        CombinedTax = combinedTax,
+                        CombinedAmount = combinedAmount,
+                        combinedTotalMix = combinedTotalMix,
+                        combinedDisc1Value = combinedDisc1Value,
+                        IsSplit = b != null,
+                        FullInvoiced = _context.Invoices
+                            .Where(i => (i.OrdersID == a.ID || (b != null && i.OrdersID == b.ID)) && i.Status != "CANCEL")
+                            .Sum(i => i.Netto) >= combinedTotal,
+                        Progress = a.OrderStatus == "CANCEL"
+                            ? "cancel"
+                            : !_context.Invoices.Any(i => (i.OrdersID == a.ID || (b != null && i.OrdersID == b.ID)) && i.Status == "ACTIVE")
+                                ? "order"
+                                : _context.Invoices.Where(i => (i.OrdersID == a.ID || (b != null && i.OrdersID == b.ID)) && i.Status == "ACTIVE")
+                                    .All(i => _context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
+                                    ? "paid"
+                                    : _context.Invoices.Where(i => (i.OrdersID == a.ID || (b != null && i.OrdersID == b.ID)) && i.Status == "ACTIVE")
+                                        .Any(i => _context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
+                                        ? "partially_paid"
+                                        : _context.Invoices.Any(i => (i.OrdersID == a.ID || (b != null && i.OrdersID == b.ID)) && i.Status == "ACTIVE" && i.FlagInv == 1)
+                                            ? "requested"
+                                            : "invoiced",
+                        InvoiceAttachmentKey = _context.Invoices
+                            .Where(i => (i.OrdersID == a.ID || (b != null && i.OrdersID == b.ID))
+                                && i.Status == "ACTIVE"
+                                && i.PaymentMethod == 1
+                                && !_context.Payments.Any(p => p.InvoicesID == i.ID && p.Status == "ACTIVE"))
+                            .Select(i => i.AttachmentKey)
+                            .FirstOrDefault()
+                    };
 
                 var dateBetween = "";
 
@@ -633,23 +650,23 @@ namespace Sopra.Services
                     {
                         ID = x.Order.ID,
                         RefID = x.Order.RefID,
-                        VoucherNo = x.Order.OrderNo,
+                        VoucherNo = x.voucherNo,
                         TransDate = x.Order.TransDate,
                         CustomerName = x.Customer?.Name ?? "",
 
                         TotalReguler = x.Order.TotalReguler ?? 0,
-                        TotalMix = x.Order.TotalMix ?? 0,
-                        Amount = x.Order.Amount ?? 0,
+                        TotalMix = x.combinedTotalMix ?? 0,
+                        Amount = x.CombinedAmount ?? 0,
 
                         Disc1 = x.Order.Disc1 ?? 0,
-                        Disc1Value = x.Order.Disc1Value ?? 0,
+                        Disc1Value = x.combinedDisc1Value ?? 0,
                         Disc2 = x.Order.Disc2 ?? 0,
                         Disc2Value = x.Order.Disc2Value ?? 0,
 
-                        Dpp = x.Order.DPP ?? 0,
-                        Tax = x.Order.TAX ?? 0,
+                        Dpp = x.CombinedDPP ?? 0,
+                        Tax = x.CombinedTax ?? 0,
                         TaxValue = x.Order.TaxValue ?? 0,
-                        Netto = x.Order.Total ?? 0,
+                        Netto = x.CombinedTotal ?? 0,
 
                         HandleBy = x.Order.Username,
                         Status = x.Order.OrderStatus,
@@ -657,7 +674,8 @@ namespace Sopra.Services
                         AttachmentKey = x.Order.AttachmentKey,
                         InvoiceAttachmentKey = x.InvoiceAttachmentKey,
 
-                        Progress = x.Progress
+                        Progress = x.Progress,
+                        IsSplit = x.IsSplit
                     };
                 })
                 .ToList();
@@ -729,7 +747,34 @@ namespace Sopra.Services
 
                 if (data == null) return null;
 
-                return await getOrderDetails(data, isRecreate);
+                OrderBottleDto order = await getOrderDetails(data, isRecreate);
+                if (data.OrderNo.EndsWith("-A"))
+                {
+                    var baseOrderNo = data.OrderNo.Substring(0, data.OrderNo.Length - 1);
+                    var bOrderNo = baseOrderNo + "B";
+                    
+                    var bOrder = await _context.Orders
+                        .FirstOrDefaultAsync(x => x.OrderNo == bOrderNo && x.IsDeleted == false);
+
+                    if (bOrder != null)
+                    {
+                        var secondOrder = await getOrderDetails(bOrder, isRecreate);
+                        
+                        var firstOrder = JsonConvert.DeserializeObject<OrderBottleDto>(
+                            JsonConvert.SerializeObject(order)
+                        );
+                        firstOrder.SplitOrderItems = null;
+
+                        order.VoucherNo = order.VoucherNo.Replace("-A", "");
+                        order.SplitOrderItems = new List<OrderBottleDto> 
+                        { 
+                            firstOrder,
+                            secondOrder 
+                        };
+                    }
+                }
+
+                return order;
             }
             catch (Exception ex)
             {
@@ -887,189 +932,218 @@ namespace Sopra.Services
                 Trace.WriteLine($"payload order from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
                 ValidateSave(data);
 
-                var newOrderNo = await GenerateVoucherNo(data.CompanyId);
-                data.VoucherNo = Convert.ToString(newOrderNo);
-
-                var logItems = new List<UserLog>();
-                var order = new Order
+                var ordersToCreate = new List<OrderBottleDto>();
+                if (data.SplitOrderItems != null && data.SplitOrderItems.Count == 2)
                 {
-                    OrderNo = data.VoucherNo,
-                    RefID = data.RefID,
-                    TransDate = Utility.getCurrentTimestamps(),
-                    ReferenceNo = data.ReferenceNo,
-                    CustomersID = data.CustomerId,
-                    CompaniesID = data.CompanyId,
-                    VouchersID = data.VouchersID,
-                    Disc1 = data.DiscPercentage,
-                    Disc1Value = data.DiscAmount,
-                    Disc2 = data.Disc2,
-                    Disc2Value = data.Disc2Value,
-                    TotalReguler = data.TotalReguler,
-                    TotalMix = data.TotalMix,
-                    OrderStatus = data.OrderStatus,
-                    Status = data.DiscStatus,
-                    Username = data.CreatedBy,
-                    Amount = data.Amount,
-                    DPP = data.Dpp,
-                    TAX = data.Tax,
-                    TaxValue = data.TaxValue,
-                    Total = data.Netto,
-                    Sfee = data.Sfee,
-                    DealerTier = data.Dealer,
-                    Type = data.Type
-                };
-
-                await _context.Orders.AddAsync(order);
-                await _context.SaveChangesAsync();
-
-                var attachmentKey = Utility.GenerateAttachmentKey(data.VoucherNo, order.ID, order.TransDate ?? Utility.getCurrentTimestamps());
-                order.AttachmentKey = attachmentKey;
-
-                var orderLogs = new UserLog
+                    ordersToCreate.Add(data.SplitOrderItems[0]);
+                    ordersToCreate.Add(data.SplitOrderItems[1]);
+                }
+                else
                 {
-                    ObjectID = order.ID,
-                    ModuleID = 1,
-                    UserID = userId,
-                    Description = "Order was created.",
-                    TransDate = Utility.getCurrentTimestamps(),
-                    DateIn = Utility.getCurrentTimestamps(),
-                    UserIn = userId,
-                    UserUp = 0,
-                    IsDeleted = false
-                };
+                    ordersToCreate.Add(data);
+                }
 
-                // INSERT REGULER
-                var allOrderDetails = new List<OrderDetail>();
-                foreach (var item in data.RegulerItems)
+                Order firstOrder = null;
+                var baseVoucherNo = await GenerateVoucherNo(data.CompanyId);
+                var orderIndex = 0;
+
+                foreach (var orderData in ordersToCreate)
                 {
-                    if (item.ProductsId == 0 || (item.ProductsId != -1 ? item.Qty <= 0 : false)) continue;
-
-                    var regulerDetail = new OrderDetail
+                    if (ordersToCreate.Count > 1)
                     {
-                        OrdersID = order.ID,
-                        ObjectID = item.ProductsId,
-                        ObjectType = "bottle",
-                        Type = "Reguler",
-                        QtyBox = item.QtyBox,
-                        Qty = item.Qty,
-                        ProductPrice = item.Price,
-                        Amount = item.Amount,
-                        Note = item.Notes
+                        var suffix = orderIndex == 0 ? "A" : "B";
+                        orderData.VoucherNo = $"{baseVoucherNo}-{suffix}";
+                    }
+                    else
+                    {
+                        orderData.VoucherNo = Convert.ToString(baseVoucherNo);
+                    }
+                    orderIndex++;
+
+                    var logItems = new List<UserLog>();
+                    var order = new Order
+                    {
+                        OrderNo = orderData.VoucherNo,
+                        RefID = orderData.RefID,
+                        TransDate = Utility.getCurrentTimestamps(),
+                        ReferenceNo = orderData.ReferenceNo,
+                        CustomersID = orderData.CustomerId,
+                        CompaniesID = orderData.CompanyId,
+                        VouchersID = orderData.VouchersID,
+                        Disc1 = orderData.DiscPercentage,
+                        Disc1Value = orderData.DiscAmount,
+                        Disc2 = orderData.Disc2,
+                        Disc2Value = orderData.Disc2Value,
+                        TotalReguler = orderData.TotalReguler,
+                        TotalMix = orderData.TotalMix,
+                        OrderStatus = orderData.OrderStatus,
+                        Status = orderData.DiscStatus,
+                        Username = orderData.CreatedBy,
+                        Amount = orderData.Amount,
+                        DPP = orderData.Dpp,
+                        TAX = orderData.Tax,
+                        TaxValue = orderData.TaxValue,
+                        Total = orderData.Netto,
+                        Sfee = orderData.Sfee,
+                        DealerTier = orderData.Dealer,
+                        Type = orderData.Type
                     };
 
-                    allOrderDetails.Add(regulerDetail);
+                    await _context.Orders.AddAsync(order);
+                    await _context.SaveChangesAsync();
 
-                    foreach (var closure in item.ClosureItems)
+                    var attachmentKey = Utility.GenerateAttachmentKey(data.VoucherNo, order.ID, order.TransDate ?? Utility.getCurrentTimestamps());
+                    order.AttachmentKey = attachmentKey;
+
+                    var orderLogs = new UserLog
                     {
-                        if (closure.ProductsId <= 0 || closure.Qty <= 0) continue;
+                        ObjectID = order.ID,
+                        ModuleID = 1,
+                        UserID = userId,
+                        Description = "Order was created.",
+                        TransDate = Utility.getCurrentTimestamps(),
+                        DateIn = Utility.getCurrentTimestamps(),
+                        UserIn = userId,
+                        UserUp = 0,
+                        IsDeleted = false
+                    };
 
-                        var closureDetail = new OrderDetail
+                    await _context.UserLogs.AddRangeAsync(orderLogs);
+                    await _context.SaveChangesAsync();
+
+                    // INSERT REGULER
+                    var allOrderDetails = new List<OrderDetail>();
+                    foreach (var item in orderData.RegulerItems)
+                    {
+                        if (item.ProductsId == 0 || (item.ProductsId != -1 ? item.Qty <= 0 : false)) continue;
+
+                        var regulerDetail = new OrderDetail
                         {
                             OrdersID = order.ID,
-                            ObjectID = closure.ProductsId,
-                            ObjectType = "closures",
-                            ParentID = item.ProductsId,
+                            ObjectID = item.ProductsId,
+                            ObjectType = "bottle",
                             Type = "Reguler",
-                            QtyBox = closure.QtyBox,
-                            Qty = closure.Qty,
-                            ProductPrice = closure.Price,
-                            Amount = closure.Amount
+                            QtyBox = item.QtyBox,
+                            Qty = item.Qty,
+                            ProductPrice = item.Price,
+                            Amount = item.Amount,
+                            Note = item.Notes
                         };
 
-                        allOrderDetails.Add(closureDetail);
+                        allOrderDetails.Add(regulerDetail);
+
+                        foreach (var closure in item.ClosureItems)
+                        {
+                            if (closure.ProductsId <= 0 || closure.Qty <= 0) continue;
+
+                            var closureDetail = new OrderDetail
+                            {
+                                OrdersID = order.ID,
+                                ObjectID = closure.ProductsId,
+                                ObjectType = "closures",
+                                ParentID = item.ProductsId,
+                                Type = "Reguler",
+                                QtyBox = closure.QtyBox,
+                                Qty = closure.Qty,
+                                ProductPrice = closure.Price,
+                                Amount = closure.Amount
+                            };
+
+                            allOrderDetails.Add(closureDetail);
+                        }
                     }
-                }
 
-                await _context.OrderDetails.AddRangeAsync(allOrderDetails);
+                    await _context.OrderDetails.AddRangeAsync(allOrderDetails);
 
-                // INSERT MIX
-                foreach (var item in data.MixItems)
-                {
-                    if (item.ProductsId <= 0 || item.Qty <= 0) continue;
-
-                    var mixDetail = new OrderDetail
+                    // INSERT MIX
+                    foreach (var item in orderData.MixItems)
                     {
-                        OrdersID = order.ID,
-                        ObjectID = item.ProductsId,
-                        ObjectType = "bottle",
-                        Type = "Mix",
-                        QtyBox = item.QtyBox,
-                        Qty = item.Qty,
-                        ProductPrice = item.Price,
-                        ParentID = 0,
-                        PromosID = item.PromoId,
-                        Amount = item.Amount,
-                        Note = item.Notes,
-                        ApprovalStatus = item.ApprovalStatus
-                    };
+                        if (item.ProductsId <= 0 || item.Qty <= 0) continue;
 
-                    _context.OrderDetails.Add(mixDetail);
-                    await _context.SaveChangesAsync();
-
-                    mixDetail.ParentID = mixDetail.ID;
-                    await _context.SaveChangesAsync();
-
-                    var closureDetails = new List<OrderDetail>();
-                    foreach (var closure in item.ClosureItems)
-                    {
-                        var closureDetail = new OrderDetail
+                        var mixDetail = new OrderDetail
                         {
                             OrdersID = order.ID,
-                            ObjectID = closure.ProductsId,
-                            ObjectType = "closures",
-                            ParentID = mixDetail.ID,
-                            PromosID = item.PromoId,
+                            ObjectID = item.ProductsId,
+                            ObjectType = "bottle",
                             Type = "Mix",
-                            QtyBox = 1,
-                            Qty = 0,
-                            ProductPrice = 0,
-                            Amount = 0
+                            QtyBox = item.QtyBox,
+                            Qty = item.Qty,
+                            ProductPrice = item.Price,
+                            ParentID = 0,
+                            PromosID = item.PromoId,
+                            Amount = item.Amount,
+                            Note = item.Notes,
+                            ApprovalStatus = item.ApprovalStatus
                         };
 
-                        closureDetails.Add(closureDetail);
-                    }
-
-                    if (closureDetails.Any())
-                    {
-                        await _context.OrderDetails.AddRangeAsync(closureDetails);
+                        _context.OrderDetails.Add(mixDetail);
                         await _context.SaveChangesAsync();
+
+                        mixDetail.ParentID = mixDetail.ID;
+                        await _context.SaveChangesAsync();
+
+                        var closureDetails = new List<OrderDetail>();
+                        foreach (var closure in item.ClosureItems)
+                        {
+                            var closureDetail = new OrderDetail
+                            {
+                                OrdersID = order.ID,
+                                ObjectID = closure.ProductsId,
+                                ObjectType = "closures",
+                                ParentID = mixDetail.ID,
+                                PromosID = item.PromoId,
+                                Type = "Mix",
+                                QtyBox = 1,
+                                Qty = 0,
+                                ProductPrice = 0,
+                                Amount = 0
+                            };
+
+                            closureDetails.Add(closureDetail);
+                        }
+
+                        if (closureDetails.Any())
+                        {
+                            await _context.OrderDetails.AddRangeAsync(closureDetails);
+                            await _context.SaveChangesAsync();
+                        }
+                    }
+
+                    // INSERT INVOICES
+                    foreach (var item in ((IEnumerable<InvoiceItem>)orderData.InvoiceItems).Reverse())
+                    {
+                        var invoiceItem = new InvoiceBottle
+                        {
+                            RefID = item.RefID,
+                            OrdersID = order.ID,
+                            CustomersID = orderData.CustomerId,
+                            CompanyID = orderData.CompanyId,
+                            CreatedBy = orderData.CreatedBy,
+                            PaymentMethod = item.PaymentMethod,
+                            Refund = item.Refund,
+                            Bill = item.Bill,
+                            Netto = item.Netto,
+                            Type = item.Type,
+                            Status = item.Status,
+                            DueDate = item.DueDate,
+                            FlagInv = item.FlagInv
+                        };
+
+                        var invoice = await _invoiceService.CreateInvoiceAsync(invoiceItem, userId);
+                    }
+
+                    await Utility.AfterSave(_context, "OrderBottle", data.ID, "Add");
+                    await _context.SaveChangesAsync();
+
+                    Trace.WriteLine($"payload order after save data into database = " + JsonConvert.SerializeObject(data, Formatting.Indented));
+                    if (firstOrder == null)
+                    {
+                        firstOrder = order;
                     }
                 }
-
-                // INSERT INVOICES
-                foreach (var item in ((IEnumerable<InvoiceItem>)data.InvoiceItems).Reverse())
-                {
-                    var invoiceItem = new InvoiceBottle
-                    {
-                        RefID = item.RefID,
-                        OrdersID = order.ID,
-                        CustomersID = data.CustomerId,
-                        CompanyID = data.CompanyId,
-                        CreatedBy = data.CreatedBy,
-                        PaymentMethod = item.PaymentMethod,
-                        Refund = item.Refund,
-                        Bill = item.Bill,
-                        Netto = item.Netto,
-                        Type = item.Type,
-                        Status = item.Status,
-                        DueDate = item.DueDate,
-                        FlagInv = item.FlagInv
-                    };
-
-                    var invoice = await _invoiceService.CreateInvoiceAsync(invoiceItem, userId);
-                }
-
-                await Utility.AfterSave(_context, "OrderBottle", data.ID, "Add");
-                await _context.SaveChangesAsync();
-
-                Trace.WriteLine($"payload order after save data into database = " + JsonConvert.SerializeObject(data, Formatting.Indented));
-
-                await _context.UserLogs.AddRangeAsync(logItems);
-                await _context.SaveChangesAsync();
 
                 await dbTrans.CommitAsync();
-
-                return order;
+                return firstOrder;
             }
             catch (Exception ex)
             {

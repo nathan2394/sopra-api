@@ -45,7 +45,7 @@ namespace Sopra.Services
                             from d in customerJoin.DefaultIfEmpty()
                             join e in _context.Payments on a.ObjectID equals e.ID
                             where a.IsDeleted == false
-                            select new { Deposit = a, User = c, Customer = d, Payment = e };
+                            select new { Deposit = a, Customer = d, Payment = e };
 
                 var dateBetween = "";
 
@@ -68,7 +68,6 @@ namespace Sopra.Services
                             query = fieldName switch
                             {
                                 "userid" => query.Where(x => x.Deposit.CustomersID.ToString().Equals(value)),
-                                "usersid" => query.Where(x => x.User.RefID.ToString().Equals(value)),
                                 "customersid" => query.Where(x => x.Customer.RefID.ToString().Equals(value)),
                                 "customername" => query.Where(x => x.Customer.Name.Equals(value)),
                                 _ => query
@@ -90,7 +89,6 @@ namespace Sopra.Services
                         query = orderBy.ToLower() switch
                         {
                             "userid" => query.OrderByDescending(x => x.Deposit.CustomersID),
-                            "usersid" => query.OrderByDescending(x => x.User.RefID),
                             "customersid" => query.OrderByDescending(x => x.Customer.RefID),
                             "customername" => query.OrderByDescending(x => x.Customer.Name),
                             _ => query
@@ -101,7 +99,6 @@ namespace Sopra.Services
                         query = orderBy.ToLower() switch
                         {
                             "userid" => query.OrderBy(x => x.Deposit.CustomersID),
-                            "usersid" => query.OrderBy(x => x.User.RefID),
                             "customersid" => query.OrderBy(x => x.Customer.RefID),
                             "customername" => query.OrderBy(x => x.Customer.Name),
                             _ => query
