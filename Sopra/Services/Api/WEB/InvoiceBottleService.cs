@@ -198,16 +198,19 @@ namespace Sopra.Services
                             join c in _context.Users on a.CustomersID equals c.RefID
                             join d in _context.Customers on c.CustomersID equals d.RefID into customerJoin
                             from d in customerJoin.DefaultIfEmpty()
+                            join o in _context.Orders.Where(o => o.OrderStatus != "CANCEL") on a.OrdersID equals o.ID into orderJoin
+                            from o in orderJoin.DefaultIfEmpty()
                             join p in _context.Payments.Where(p => p.Status != "CANCEL") on a.ID equals p.InvoicesID into paymentJoin
                             from p in paymentJoin.DefaultIfEmpty()
                             where a.IsDeleted == false
-                            select new { Invoice = a, Customer = d, Payment = p };
+                            select new { Order = o, Invoice = a, Customer = d, Payment = p };
 
                 var dateBetween = "";
 
                 // Searching
                 if (!string.IsNullOrEmpty(search))
                     query = query.Where(x => x.Invoice.RefID.ToString().Equals(search)
+                        || x.Order.OrderNo.Contains(search)
                         || x.Invoice.InvoiceNo.Contains(search)
                         || x.Invoice.TransDate.ToString().Contains(search)
                         || x.Customer.Name.Contains(search)
@@ -229,6 +232,7 @@ namespace Sopra.Services
                             query = fieldName switch
                             {
                                 "refid" => query.Where(x => x.Invoice.RefID.ToString().Equals(value)),
+                                "orderno" => query.Where(x => x.Order.OrderNo.Contains(value)),
                                 "invoiceno" => query.Where(x => x.Invoice.InvoiceNo.Contains(value)),
                                 "invoicestatus" => query.Where(x => x.Invoice.Status.Contains(value)),
                                 "customersid" => query.Where(x => x.Invoice.CustomersID.ToString().Equals(value)),
@@ -257,6 +261,7 @@ namespace Sopra.Services
                         query = orderBy.ToLower() switch
                         {
                             "refid" => query.OrderByDescending(x => x.Invoice.RefID),
+                            "orderno" => query.OrderByDescending(x => x.Order.OrderNo),
                             "invoiceno" => query.OrderByDescending(x => x.Invoice.InvoiceNo),
                             "invoicestatus" => query.OrderByDescending(x => x.Invoice.Status),
                             "transdate" => query.OrderByDescending(x => x.Invoice.TransDate),
@@ -271,6 +276,7 @@ namespace Sopra.Services
                         query = orderBy.ToLower() switch
                         {
                             "refid" => query.OrderBy(x => x.Invoice.RefID),
+                            "orderno" => query.OrderBy(x => x.Order.OrderNo),
                             "invoiceno" => query.OrderBy(x => x.Invoice.InvoiceNo),
                             "invoicestatus" => query.OrderBy(x => x.Invoice.Status),
                             "transdate" => query.OrderBy(x => x.Invoice.TransDate),
@@ -329,7 +335,11 @@ namespace Sopra.Services
                     {
                         ID = x.Invoice.ID,
                         RefID = x.Invoice.RefID,
+
                         OrdersID = x.Invoice.OrdersID,
+                        OrderNo = x.Order.OrderNo,
+                        OrderDate = x.Order.TransDate,
+
                         VoucherNo = x.Invoice.InvoiceNo,
                         TransDate = x.Invoice.TransDate,
                         CustomerName = x.Customer?.Name ?? "",
@@ -345,6 +355,7 @@ namespace Sopra.Services
 
                         HandleBy = x.Invoice.Username,
                         Status = x.Invoice.Status,
+                        IsDP = x.Invoice.IsDP,
 
                         AttachmentKey = x.Invoice.AttachmentKey,
 
@@ -469,6 +480,7 @@ namespace Sopra.Services
                     DueDate = x.Invoice.DueDate,
 
                     Status = x.Invoice.Status,
+                    IsDP = x.Invoice.IsDP,
 
                     Payment = x.Payment != null ? new
                     {
@@ -587,6 +599,7 @@ namespace Sopra.Services
                     InvoiceNo = newInvoiceNo,
                     DueDate = Utility.currentTimezone(data.DueDate ?? DateTime.UtcNow),
                     FlagInv = data.FlagInv,
+                    IsDP = data.IsDP,
                     VANum = vaNum,
                     CustNum = custNum,
                     UserIn = userId

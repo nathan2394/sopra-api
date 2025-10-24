@@ -93,9 +93,8 @@ namespace Sopra.Services
                 //Get data from context Orders join to Users
                 //Users join to Customers 
                 var query = from a in _context.Users
-                            join b in _context.Role on a.RoleID equals b.ID into RoleJoin
-                            from b in RoleJoin.DefaultIfEmpty()
-                            where a.IsDeleted == false && a.RoleID != 9 // Reseller
+                            join b in _context.Role on a.RoleID equals b.ID
+                            where a.IsDeleted == false && b.Name != "Reseller"
                             select new { User = a, Role = b };
 
                 var dateBetween = "";

@@ -1126,7 +1126,8 @@ namespace Sopra.Services
                             Type = item.Type,
                             Status = item.Status,
                             DueDate = item.DueDate,
-                            FlagInv = item.FlagInv
+                            FlagInv = item.FlagInv,
+                            IsDP = item.IsDP
                         };
 
                         var invoice = await _invoiceService.CreateInvoiceAsync(invoiceItem, userId);
