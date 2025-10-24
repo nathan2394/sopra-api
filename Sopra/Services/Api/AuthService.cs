@@ -276,6 +276,7 @@ namespace Sopra.Services
 				var googleUser = await VerifyGoogleToken(googleToken);
 				if (googleUser == null)
 				{
+					Trace.WriteLine("Failed to verify Google authorization token");
 					return null;
 				}
 
@@ -292,6 +293,7 @@ namespace Sopra.Services
 
 				if (user == null)
 				{
+					Trace.WriteLine($"No user found with email: {googleUser.Email}");
 					return null;
 				}
 

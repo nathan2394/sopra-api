@@ -930,7 +930,6 @@ namespace Sopra.Services
             try
             {
                 Trace.WriteLine($"payload order from frontend = " + JsonConvert.SerializeObject(data, Formatting.Indented));
-                ValidateSave(data);
 
                 var ordersToCreate = new List<OrderBottleDto>();
                 if (data.SplitOrderItems != null && data.SplitOrderItems.Count == 2)
@@ -949,6 +948,8 @@ namespace Sopra.Services
 
                 foreach (var orderData in ordersToCreate)
                 {
+                    ValidateSave(orderData);
+
                     if (ordersToCreate.Count > 1)
                     {
                         var suffix = orderIndex == 0 ? "A" : "B";
