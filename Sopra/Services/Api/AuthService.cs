@@ -279,7 +279,16 @@ namespace Sopra.Services
 					return null;
 				}
 
-				var user = context.Users.FirstOrDefault(x => x.Email == googleUser.Email && x.IsDeleted == false);
+				var user = context.Users
+					.Join(context.Role,
+						u => u.RoleID, 
+						r => r.ID,
+						(u, r) => new { User = u, Role = r })
+					.Where(x => x.Role.Name != "Reseller" 
+						&& x.User.Email == googleUser.Email 
+						&& x.User.IsDeleted == false)
+					.Select(x => x.User)
+					.FirstOrDefault();
 
 				if (user == null)
 				{
@@ -353,7 +362,16 @@ namespace Sopra.Services
 					return null;
 				}
 
-				var user = context.Users.FirstOrDefault(x => x.Email == zohoUser.Email && x.IsDeleted == false);
+				var user = context.Users
+					.Join(context.Role,
+						u => u.RoleID, 
+						r => r.ID,
+						(u, r) => new { User = u, Role = r })
+					.Where(x => x.Role.Name != "Reseller" 
+						&& x.User.Email == zohoUser.Email 
+						&& x.User.IsDeleted == false)
+					.Select(x => x.User)
+					.FirstOrDefault();
 
 				if (user == null)
 				{

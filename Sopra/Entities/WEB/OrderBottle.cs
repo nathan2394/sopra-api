@@ -100,5 +100,6 @@ namespace Sopra.Entities
         public long? SentWaCounter { get; set; }
         public DateTime? WASentTime { get; set; }
         public long? FlagInv { get; set; }
+        public bool? IsDP { get; set; }
     }
 }
