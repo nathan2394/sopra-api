@@ -43,5 +43,6 @@ namespace Sopra.Entities
         public bool? CreditStatus { get; set; }
         public string? ExternalNo { get; set; }
         public string? AttachmentKey { get; set; }
+        public bool? IsDP { get; set; }
     }
 }

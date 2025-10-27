@@ -40,7 +40,7 @@ namespace Sopra.Services
         {
             try
             {
-                var query = $"EXEC spDashboard @Key='{key}', @StartDate='{startDate.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}', @EndDate='{endDate.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}', @CompanyID={companyID}";
+                var query = $"EXEC spDashboard @Key='{key}', @StartDate='{startDate.Date.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}', @EndDate='{endDate.Date.AddHours(23).AddMinutes(59).AddSeconds(59).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}', @CompanyID={companyID}";
                 var result = await Task.Run(() => Utility.SQLGetObjects(query, Utility.SQLDBConnection));
 
                 var dataList = ConvertDataTableToList(result, key);

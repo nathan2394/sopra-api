@@ -31,6 +31,7 @@ namespace Sopra.Entities
         public string Type { get; set; }
         public decimal? Sfee { get; set; }
         public string? Progress { get; set; }
+        public List<OrderBottleDto> SplitOrderItems { get; set; }
         public List<RegulerItem> RegulerItems { get; set; }
         public List<MixItem> MixItems { get; set; }
         public List<InvoiceItem> InvoiceItems { get; set; }
@@ -99,5 +100,6 @@ namespace Sopra.Entities
         public long? SentWaCounter { get; set; }
         public DateTime? WASentTime { get; set; }
         public long? FlagInv { get; set; }
+        public bool? IsDP { get; set; }
     }
 }

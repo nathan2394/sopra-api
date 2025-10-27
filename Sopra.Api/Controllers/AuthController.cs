@@ -33,7 +33,7 @@ namespace Sopra.Api.Controllers
 			{
 				var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
 
-				var user = _service.Authenticate(request.Email, request.Password, ipAddress);
+				var user = _service.Authenticate(request.Email, request.Password, ipAddress, request.IsRestricted);
 				if (user == null)
 					return BadRequest(new { message = "Email or password is incorrect" });
 
@@ -63,7 +63,7 @@ namespace Sopra.Api.Controllers
 			{
 				var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
 
-				var user = await _service.AuthenticateWithGoogle(request.GoogleToken, ipAddress);
+				var user = await _service.AuthenticateWithGoogle(request.GoogleToken, ipAddress, request.IsRestricted);
 				if (user == null)
 				{
 					return BadRequest(new { message = "User can't be found" });
@@ -101,7 +101,7 @@ namespace Sopra.Api.Controllers
 
 				var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
 
-				var user = await _service.AuthenticateWithZoho(request.Code, request.RedirectUri, ipAddress);
+				var user = await _service.AuthenticateWithZoho(request.Code, request.RedirectUri, ipAddress, request.IsRestricted);
 				if (user == null)
 				{
 					return BadRequest(new { message = "User can't be found" });

@@ -45,9 +45,18 @@ namespace Sopra.Services
 			// _userLog = userLog;
 		}
 
-		public User Authenticate(string email, string password, string ipAddress)
+		public User Authenticate(string email, string password, string ipAddress, bool isRestricted = false)
 		{
-			var user = context.Users.FirstOrDefault(x => x.Email == email && x.IsDeleted == false);
+			var user = context.Users
+				.Join(context.Role,
+					u => u.RoleID, 
+					r => r.ID,
+					(u, r) => new { User = u, Role = r })
+				.Where(x => (!isRestricted || x.Role.Name != "Reseller") 
+					&& x.User.Email == email
+					&& x.User.IsDeleted == false)
+				.Select(x => x.User)
+				.FirstOrDefault();
 
 			try
 			{
@@ -269,20 +278,31 @@ namespace Sopra.Services
 			return tokenHandler.WriteToken(token);
 		}
 
-		public async Task<User> AuthenticateWithGoogle(string googleToken, string ipAddress)
+		public async Task<User> AuthenticateWithGoogle(string googleToken, string ipAddress, bool isRestricted = false)
 		{
 			try
 			{
 				var googleUser = await VerifyGoogleToken(googleToken);
 				if (googleUser == null)
 				{
+					Trace.WriteLine("Failed to verify Google authorization token");
 					return null;
 				}
 
-				var user = context.Users.FirstOrDefault(x => x.Email == googleUser.Email && x.IsDeleted == false);
+				var user = context.Users
+					.Join(context.Role,
+						u => u.RoleID, 
+						r => r.ID,
+						(u, r) => new { User = u, Role = r })
+					.Where(x => (!isRestricted || x.Role.Name != "Reseller") 
+						&& x.User.Email == googleUser.Email 
+						&& x.User.IsDeleted == false)
+					.Select(x => x.User)
+					.FirstOrDefault();
 
 				if (user == null)
 				{
+					Trace.WriteLine($"No user found with email: {googleUser.Email}");
 					return null;
 				}
 
@@ -303,10 +323,6 @@ namespace Sopra.Services
 				if (ex.StackTrace != null)
 					Trace.WriteLine(ex.StackTrace);
 				return null;
-			}
-			finally
-			{
-				context.Dispose();
 			}
 		}
 
@@ -335,7 +351,7 @@ namespace Sopra.Services
 			}
 		}
 
-		public async Task<User> AuthenticateWithZoho(string authorizationCode, string redirectUri, string ipAddress)
+		public async Task<User> AuthenticateWithZoho(string authorizationCode, string redirectUri, string ipAddress, bool isRestricted = false)
 		{
 			try
 			{
@@ -353,7 +369,16 @@ namespace Sopra.Services
 					return null;
 				}
 
-				var user = context.Users.FirstOrDefault(x => x.Email == zohoUser.Email && x.IsDeleted == false);
+				var user = context.Users
+					.Join(context.Role,
+						u => u.RoleID, 
+						r => r.ID,
+						(u, r) => new { User = u, Role = r })
+					.Where(x => (!isRestricted || x.Role.Name != "Reseller") 
+						&& x.User.Email == zohoUser.Email 
+						&& x.User.IsDeleted == false)
+					.Select(x => x.User)
+					.FirstOrDefault();
 
 				if (user == null)
 				{
