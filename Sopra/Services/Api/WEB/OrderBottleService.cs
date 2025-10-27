@@ -569,7 +569,7 @@ namespace Sopra.Services
                                 "isinvoiced" => value == "0"
                                     ? query.Where(x => x.FullInvoiced == false)
                                     : value == "1"
-                                        ? query.Where(x => x.FullInvoiced != true)
+                                        ? query.Where(x => x.FullInvoiced == true)
                                         : query,
                                 _ => query
                             };
@@ -646,6 +646,32 @@ namespace Sopra.Services
                 // Map to DTO
                 var resData = data.Select(x =>
                 {
+                    var orderAttachments = new List<object>();
+                    
+                    var currentOrderAttachment = _context.Orders
+                        .Where(o => o.ID == x.Order.ID && !string.IsNullOrEmpty(o.AttachmentKey))
+                        .Select(o => new { OrderNo = o.OrderNo, AttachmentKey = o.AttachmentKey })
+                        .FirstOrDefault();
+                    if (currentOrderAttachment != null)
+                        orderAttachments.Add(currentOrderAttachment);
+                    
+                    if (x.IsSplit)
+                    {
+                        var splitOrderAttachment = _context.Orders
+                            .Where(o => o.OrderNo == x.Order.OrderNo.Replace("-A", "") + "-B" && !string.IsNullOrEmpty(o.AttachmentKey))
+                            .Select(o => new { OrderNo = o.OrderNo, AttachmentKey = o.AttachmentKey })
+                            .FirstOrDefault();
+                        if (splitOrderAttachment != null)
+                            orderAttachments.Add(splitOrderAttachment);
+                    }
+
+                    var invoiceAttachments = _context.Invoices
+                        .Where(i => (i.OrdersID == x.Order.ID || (x.IsSplit && _context.Orders.Any(o => o.OrderNo == x.Order.OrderNo.Replace("-A", "") + "-B" && o.ID == i.OrdersID)))
+                            && i.Status == "ACTIVE"
+                            && !string.IsNullOrEmpty(i.AttachmentKey))
+                        .Select(i => new { InvoiceNo = i.InvoiceNo, AttachmentKey = i.AttachmentKey })
+                        .ToList();
+
                     return new
                     {
                         ID = x.Order.ID,
@@ -671,8 +697,8 @@ namespace Sopra.Services
                         HandleBy = x.Order.Username,
                         Status = x.Order.OrderStatus,
 
-                        AttachmentKey = x.Order.AttachmentKey,
-                        InvoiceAttachmentKey = x.InvoiceAttachmentKey,
+                        OrderAttachments = orderAttachments,
+                        InvoiceAttachments = invoiceAttachments,
 
                         Progress = x.Progress,
                         IsSplit = x.IsSplit

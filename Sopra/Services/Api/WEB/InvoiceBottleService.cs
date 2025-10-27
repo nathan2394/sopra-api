@@ -357,7 +357,9 @@ namespace Sopra.Services
                         Status = x.Invoice.Status,
                         IsDP = x.Invoice.IsDP,
 
-                        AttachmentKey = x.Invoice.AttachmentKey,
+                        InvoiceAttachments = x.Invoice != null && !string.IsNullOrEmpty(x.Invoice.AttachmentKey)
+                            ? new List<object> { new { InvoiceNo = x.Invoice.InvoiceNo, AttachmentKey = x.Invoice.AttachmentKey } }
+                            : new List<object>(),
 
                         Progress = x.Invoice.Status == "ACTIVE"
                             ? (x.Payment == null

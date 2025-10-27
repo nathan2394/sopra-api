@@ -11,6 +11,7 @@ namespace Sopra.Entities
 	{
 		public string Code { get; set; }
 		public string RedirectUri { get; set; }
+        public bool IsRestricted { get; set; }
 	}
 
     public class ZohoTokenResponse

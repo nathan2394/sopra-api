@@ -45,9 +45,18 @@ namespace Sopra.Services
 			// _userLog = userLog;
 		}
 
-		public User Authenticate(string email, string password, string ipAddress)
+		public User Authenticate(string email, string password, string ipAddress, bool isRestricted = false)
 		{
-			var user = context.Users.FirstOrDefault(x => x.Email == email && x.IsDeleted == false);
+			var user = context.Users
+				.Join(context.Role,
+					u => u.RoleID, 
+					r => r.ID,
+					(u, r) => new { User = u, Role = r })
+				.Where(x => (!isRestricted || x.Role.Name != "Reseller") 
+					&& x.User.Email == email
+					&& x.User.IsDeleted == false)
+				.Select(x => x.User)
+				.FirstOrDefault();
 
 			try
 			{
@@ -269,7 +278,7 @@ namespace Sopra.Services
 			return tokenHandler.WriteToken(token);
 		}
 
-		public async Task<User> AuthenticateWithGoogle(string googleToken, string ipAddress)
+		public async Task<User> AuthenticateWithGoogle(string googleToken, string ipAddress, bool isRestricted = false)
 		{
 			try
 			{
@@ -285,7 +294,7 @@ namespace Sopra.Services
 						u => u.RoleID, 
 						r => r.ID,
 						(u, r) => new { User = u, Role = r })
-					.Where(x => x.Role.Name != "Reseller" 
+					.Where(x => (!isRestricted || x.Role.Name != "Reseller") 
 						&& x.User.Email == googleUser.Email 
 						&& x.User.IsDeleted == false)
 					.Select(x => x.User)
@@ -315,10 +324,6 @@ namespace Sopra.Services
 					Trace.WriteLine(ex.StackTrace);
 				return null;
 			}
-			finally
-			{
-				context.Dispose();
-			}
 		}
 
 		private async Task<GoogleUserInfo> VerifyGoogleToken(string token)
@@ -346,7 +351,7 @@ namespace Sopra.Services
 			}
 		}
 
-		public async Task<User> AuthenticateWithZoho(string authorizationCode, string redirectUri, string ipAddress)
+		public async Task<User> AuthenticateWithZoho(string authorizationCode, string redirectUri, string ipAddress, bool isRestricted = false)
 		{
 			try
 			{
@@ -369,7 +374,7 @@ namespace Sopra.Services
 						u => u.RoleID, 
 						r => r.ID,
 						(u, r) => new { User = u, Role = r })
-					.Where(x => x.Role.Name != "Reseller" 
+					.Where(x => (!isRestricted || x.Role.Name != "Reseller") 
 						&& x.User.Email == zohoUser.Email 
 						&& x.User.IsDeleted == false)
 					.Select(x => x.User)
