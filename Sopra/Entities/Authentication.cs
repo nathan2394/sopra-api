@@ -9,5 +9,6 @@ namespace Sopra.Entities
 
         [DataType(DataType.Password)]
         public string Password { get; set; }
+        public bool IsRestricted { get; set; }
     }
 }

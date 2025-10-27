@@ -6,6 +6,7 @@ namespace Sopra.Entities
     {
         [Required]
         public string GoogleToken { get; set; }
+        public bool IsRestricted { get; set; }
     }
 
     public class GoogleUserInfo

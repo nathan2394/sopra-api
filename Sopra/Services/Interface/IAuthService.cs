@@ -13,10 +13,10 @@ namespace Sopra.Services
 {
     public interface IAuthService
     {
-		User Authenticate(string email, string password, string ipAddress);
+		User Authenticate(string email, string password, string ipAddress, bool isRestricted);
         Task<AuthResponse> UserAuthenticate(string email, string firebaseToken);
-        Task<User> AuthenticateWithGoogle(string googleToken, string ipAddress);
-        Task<User> AuthenticateWithZoho(string authorizationCode, string redirectUri, string ipAddress);
+        Task<User> AuthenticateWithGoogle(string googleToken, string ipAddress, bool isRestricted);
+        Task<User> AuthenticateWithZoho(string authorizationCode, string redirectUri, string ipAddress, bool isRestricted);
         Task<AuthenticationOTPRequest> AuthenticateOTP(string phone, string ipAddress);
 		User AuthenticateVerifyOTP(string code, string ipAddress);
         // User ChangeProfile(string fullName, string password, long id);
