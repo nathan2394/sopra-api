@@ -198,7 +198,7 @@ namespace Sopra.Services
                             join c in _context.Users on a.CustomersID equals c.RefID
                             join d in _context.Customers on c.CustomersID equals d.RefID into customerJoin
                             from d in customerJoin.DefaultIfEmpty()
-                            join o in _context.Orders.Where(o => o.OrderStatus != "CANCEL") on a.OrdersID equals o.ID into orderJoin
+                            join o in _context.Orders on a.OrdersID equals o.ID into orderJoin
                             from o in orderJoin.DefaultIfEmpty()
                             join p in _context.Payments.Where(p => p.Status != "CANCEL") on a.ID equals p.InvoicesID into paymentJoin
                             from p in paymentJoin.DefaultIfEmpty()

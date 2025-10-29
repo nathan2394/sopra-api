@@ -852,11 +852,14 @@ namespace Sopra.Services
                             o.Status == "INDUK" &&
                             o.TransDate >= DateTime.UtcNow.AddDays(-30))
                 .Where(o => _context.Invoices.Any(i => i.OrdersID == o.ID) &&
-                            _context.Invoices.Where(i => i.OrdersID == o.ID).Count() ==
-                            _context.Invoices.Where(i => i.OrdersID == o.ID)
+                            _context.Invoices.Where(i => i.OrdersID == o.ID && i.Status == "ACTIVE").Count() ==
+                            _context.Invoices.Where(i => i.OrdersID == o.ID && i.Status == "ACTIVE")
                                 .Join(_context.Payments,
-                                i => i.ID, p => p.InvoicesID,
-                                (i, p) => i.ID)
+                                    i => i.ID, 
+                                    p => p.InvoicesID,
+                                    (i, p) => new { i.ID, p.Status })
+                                .Where(x => x.Status == "ACTIVE")
+                                .Select(x => x.ID)
                                 .Distinct()
                                 .Count())
                 .OrderByDescending(x => x.ID)
