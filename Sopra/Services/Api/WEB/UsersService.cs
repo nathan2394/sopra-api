@@ -93,9 +93,11 @@ namespace Sopra.Services
                 //Get data from context Orders join to Users
                 //Users join to Customers 
                 var query = from a in _context.Users
-                            join b in _context.Role on a.RoleID equals b.ID
-                            where a.IsDeleted == false && b.Name != "Reseller"
-                            select new { User = a, Role = b };
+                    join b in _context.Role on a.RoleID equals b.ID into roleJoin
+                    from b in roleJoin.DefaultIfEmpty()
+                    where a.IsDeleted == false 
+                        && (b == null || b.Name != "Reseller")
+                    select new { User = a, Role = b };
 
                 var dateBetween = "";
 
@@ -122,7 +124,7 @@ namespace Sopra.Services
                             if (fieldName == "transdate") dateBetween = Convert.ToString(value);
                             query = fieldName switch
                             {
-                                "username" => query.Where(x => x.User.Name.ToString().Equals(value)),
+                                "username" => query.Where(x => x.User.Name.Contains(value)),
                                 _ => query
                             };
                         }
